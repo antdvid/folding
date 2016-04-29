@@ -34,8 +34,17 @@ int main(int argc, char** argv)
 	SURFACE* surf;
 	initTestModule(&front,surf);
 
-	//begin to fold
+	//set folding parameter
 	Folder* folder = new Folder3d(surf);
+	folder->setDirection(2);
+	folder->setThickness(0.02);
+
+	//set slice
+	double center[] = {0.3,0.5,0.5};
+	Slice *s = new Slice(center,Slice::UPWARDS,0);
+	folder->inputFoldingSlices(s);
+
+	//begin to fold
 	folder->doFolding();
 	
 	std::string outname(OutName(&front));

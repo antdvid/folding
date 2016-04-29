@@ -2,12 +2,23 @@
 #define FOLD_HELPER_H
 #include <FronTier.h>
 class Slice{
-    double center[3];
-    double normal[3];
-    enum Side{POSITIVE_SIDE,NEGATIVE_SIDE};
 public:
+    enum Side{UPWARDS,DOWNWARDS};
     double getDistance(const double*);
-    Side getSide(const double*);
+    const double* getCenter() {return center;};
+    static void setThickness(double h) {s_thick = h;}
+    static double getThickness() {return s_thick;}
+    void setSide(Side s) {this->m_side = s;}
+    Side getSide() {return m_side;}
+    void setDirection(int dir) {this->m_dir = dir;}
+    int getDirection() {return m_dir;}
+    Slice(double[],Side,int);
+    static double s_thick;
+private:
+    Slice(){}
+    double center[3];
+    Side m_side;
+    int m_dir;
 }; 
 
 //adapter for FronTier geometry:
@@ -46,12 +57,14 @@ private:
 
 class FoldPoint: public Cell{
 public:
-    POINT* point;
     int num_of_points(){return 1;}
     FoldPoint* Point(int);
     FoldPoint(POINT* p) : point(p) {}
+    double* coords();
+    POINT* getFronTierPoint(){return point;} 
     ~FoldPoint(){};
 private:
+    POINT* point;
     FoldPoint();
 };
 #endif

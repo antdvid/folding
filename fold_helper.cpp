@@ -1,11 +1,14 @@
 #include "fold_helper.h"
 #include <FronTier.h>
-double Slice::getDistance(const double* p) {
-	return 0;
+double Slice::s_thick = 0.01;
+Slice::Slice(double c[], Slice::Side side, int dir): 
+	m_side(side), m_dir(dir)
+{
+	memcpy(center,c,3*sizeof(double));
 }
 
-Slice::Side Slice::getSide(const double* p) {
-	return POSITIVE_SIDE;
+double Slice::getDistance(const double* p) {
+	return 0;
 }
 
 FoldTri::FoldTri(TRI* t) {
@@ -33,3 +36,5 @@ FoldBond::~FoldBond() {
 FoldPoint* FoldBond::Point(int i) {return points[i];}
 
 FoldPoint* FoldPoint::Point(int i) {return this;}
+
+double* FoldPoint::coords() { return Coords(point);}
