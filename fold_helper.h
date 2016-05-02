@@ -5,8 +5,8 @@ class Slice{
 public:
     enum Dir{UPWARDS = 0,DOWNWARDS};
     enum Nor{WEST = 0,EAST,SOUTH,NORTH,LOWER,UPPER};
-    double getDistance(const double*);
     const double* getCenter() {return center;};
+    void setCenter(double[3]);
     static void setThickness(double h) {s_thick = h;}
     static double getThickness() {return s_thick;}
     void setNormal(Nor n) {this->m_nor = n;}
@@ -21,8 +21,8 @@ public:
 private:
     Slice(){}
     double center[3];
-    Nor m_nor;
     Dir m_dir;
+    Nor m_nor;
 }; 
 
 //adapter for FronTier geometry:

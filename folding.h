@@ -20,6 +20,7 @@ protected:
     int getDirection(){return m_direction;}
     void getBoundBox(double[2][3]);
     void getFoldBoundBox(double[2][3],Slice*,int);
+    void snapSliceToGrid(Slice*);
     virtual void movePointsInGap(Slice*, double) = 0;
     virtual void rotatePoints(Slice*,double h) = 0;
 private:

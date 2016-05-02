@@ -7,14 +7,13 @@ Slice::Slice(double c[], Slice::Dir dir, Slice::Nor nor):
 	memcpy(center,c,3*sizeof(double));
 }
 
-double Slice::getDistance(const double* p) {
-	return 0;
+void Slice::setCenter(double new_cent[3]) {
+ 	memcpy(center,new_cent,3*sizeof(double));
 }
 
 bool Slice::isInGap(const double crds[]) {
 	int dir = getNormalDir();
 	double gap = getThickness()*0.5;
-	const double *center = getCenter();
 	return crds[dir] > center[dir]-gap && 
 	       crds[dir] < center[dir]+gap;
 }

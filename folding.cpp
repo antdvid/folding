@@ -7,7 +7,28 @@ void Folder::computeRotateCenter(){
 }
 
 void Folder::inputFoldingSlices(Slice* s) {
+    snapSliceToGrid(s);
     slices.push_back(s);
+}
+
+void Folder::snapSliceToGrid(Slice* s) {
+   int dir = s->getNormalDir();
+   const double* cen = s->getCenter();
+   double min_dist = HUGE;
+   double best_center[3] = {0.0};
+   memcpy(best_center,cen,3*sizeof(double));
+
+   for (std::vector<FoldPoint*>::iterator it = pts.begin();
+	it != pts.end(); ++it) 
+   {
+	double* crds = (*it)->coords();
+	double dist = fabs(cen[dir]-crds[dir]);
+	if (dist < min_dist) {
+	    min_dist = dist;
+	    best_center[dir] = crds[dir];
+	}
+   }
+   s->setCenter(best_center);
 }
 
 void Folder::getBoundBox(double bb[2][3]) {
@@ -68,7 +89,7 @@ void Folder3d::doFlatten(int dir) {
     double bb[2][3];
     getBoundBox(bb);
     double h = getThickness();
-    double flatDist = 0.5*(bb[1][dir] - bb[0][dir] - h);
+    double flatDist = std::max(0.5*(bb[1][dir] - bb[0][dir] - h),0.0);
     double flatLine[2];
     flatLine[0] = bb[0][dir] + flatDist;
     flatLine[1] = bb[1][dir] - flatDist;
@@ -85,11 +106,10 @@ void Folder3d::doFlatten(int dir) {
 
 void Folder3d::doFolding() {
     doFlatten(getDirection());
-    printf("slice number = %lu\n",slices.size());
     for (std::vector<Slice*>::iterator it = slices.begin();
 	 it != slices.end(); ++it) 
     {
-	printf("fold base on %lu slice\n",it-slices.begin());
+	printf("folding base on %lu slice ...\n",it-slices.begin());
 	doFolding(*it);
     }
 }
@@ -111,9 +131,10 @@ void Folder3d::doFolding(Slice* s) {
     else
 	h = 0.501*fabs(fbb[0][folder_dir]-bb[0][folder_dir]);
 
-
+    h = std::max(h,this->getThickness());
 
     movePointsInGap(s,h);
+
     if (s->getDirection() == Slice::UPWARDS)
         rotatePoints(s,bb[1][folder_dir]+h);
     else
@@ -162,7 +183,6 @@ void Folder3d::rotatePoints(Slice* s,double h) {
    \____________
 
 */
-    int push_dir = s->getDirection();
     int slice_dir = s->getNormalDir();
     int side = s->getNormalSide();
     int folder_dir = this->getDirection();
