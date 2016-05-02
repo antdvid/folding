@@ -3,22 +3,26 @@
 #include <FronTier.h>
 class Slice{
 public:
-    enum Side{UPWARDS,DOWNWARDS};
+    enum Dir{UPWARDS = 0,DOWNWARDS};
+    enum Nor{WEST = 0,EAST,SOUTH,NORTH,LOWER,UPPER};
     double getDistance(const double*);
     const double* getCenter() {return center;};
     static void setThickness(double h) {s_thick = h;}
     static double getThickness() {return s_thick;}
-    void setSide(Side s) {this->m_side = s;}
-    Side getSide() {return m_side;}
-    void setDirection(int dir) {this->m_dir = dir;}
-    int getDirection() {return m_dir;}
-    Slice(double[],Side,int);
+    void setNormal(Nor n) {this->m_nor = n;}
+    Nor getNormal() {return m_nor;}
+    int getNormalDir() {return m_nor/2;}
+    int getNormalSide() {return m_nor%2;}
+    void setDirection(Dir dir) {this->m_dir = dir;}
+    Dir getDirection() {return m_dir;}
+    bool isInGap(const double[]);
+    Slice(double[],Dir,Nor);
     static double s_thick;
 private:
     Slice(){}
     double center[3];
-    Side m_side;
-    int m_dir;
+    Nor m_nor;
+    Dir m_dir;
 }; 
 
 //adapter for FronTier geometry:

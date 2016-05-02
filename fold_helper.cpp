@@ -1,14 +1,22 @@
 #include "fold_helper.h"
 #include <FronTier.h>
 double Slice::s_thick = 0.01;
-Slice::Slice(double c[], Slice::Side side, int dir): 
-	m_side(side), m_dir(dir)
+Slice::Slice(double c[], Slice::Dir dir, Slice::Nor nor): 
+	m_dir(dir), m_nor(nor)
 {
 	memcpy(center,c,3*sizeof(double));
 }
 
 double Slice::getDistance(const double* p) {
 	return 0;
+}
+
+bool Slice::isInGap(const double crds[]) {
+	int dir = getNormalDir();
+	double gap = getThickness()*0.5;
+	const double *center = getCenter();
+	return crds[dir] > center[dir]-gap && 
+	       crds[dir] < center[dir]+gap;
 }
 
 FoldTri::FoldTri(TRI* t) {

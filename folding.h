@@ -19,6 +19,7 @@ protected:
     double getThickness(){return m_thickness;}
     int getDirection(){return m_direction;}
     void getBoundBox(double[2][3]);
+    void getFoldBoundBox(double[2][3],Slice*,int);
     virtual void movePointsInGap(Slice*, double) = 0;
     virtual void rotatePoints(Slice*,double h) = 0;
 private:

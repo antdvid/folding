@@ -40,9 +40,15 @@ int main(int argc, char** argv)
 	folder->setThickness(0.02);
 
 	//set slice
-	double center[] = {0.3,0.5,0.5};
-	Slice *s = new Slice(center,Slice::UPWARDS,0);
+	double center[3] = {0.3,0.5,0.5};
+	Slice *s = new Slice(center,Slice::UPWARDS,Slice::EAST);
 	folder->inputFoldingSlices(s);
+	center[0] = 0.42;
+        folder->inputFoldingSlices(
+		new Slice(center,Slice::UPWARDS,Slice::EAST));
+	center[0] = 0.58;
+        folder->inputFoldingSlices(
+		new Slice(center,Slice::UPWARDS,Slice::EAST));
 
 	//begin to fold
 	folder->doFolding();
