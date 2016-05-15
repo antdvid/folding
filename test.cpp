@@ -1,6 +1,7 @@
 #include <FronTier.h>
 #include <string>
 #include "folding.h"
+#include "spring_solver.h"
 #include "folding_state.h"
 #include <fenv.h>
 
@@ -8,6 +9,7 @@
 static void initTestModule(Front*,SURFACE*&);
 static void initAirbag(Front*,FILE*,SURFACE*&);
 static void initFabric(Front*,FILE*,SURFACE*&);
+//static void myOptimizeSurf(Front *);
 
 int main(int argc, char** argv)
 {
@@ -32,32 +34,19 @@ int main(int argc, char** argv)
 	SURFACE* surf;
 	initTestModule(&front,surf);
 
-	//set folding parameter
-	Folder* folder = new Folder3d(surf);
-	folder->setDirection(2);
-	folder->setThickness(0.005);
-
-	//set slice
-	double center[3] = {0.3,0.5,0.5};
-	Slice *s = new Slice(center,Slice::UPWARDS,Slice::EAST);
-	folder->inputFoldingSlices(s);
-
-	center[0] = 0.5;
-        folder->inputFoldingSlices(
-		new Slice(center,Slice::DOWNWARDS,Slice::EAST));
-
-	center[0] = 0.5;
-	center[1] = 0.5;
-	center[2] = 0.5;
-        folder->inputFoldingSlices(
-		new Slice(center,Slice::UPWARDS,Slice::NORTH));
-
-	//begin to fold
-	folder->doFolding();
+	Folder* folder = new Folder3d(front.interf,surf);
 	
-	std::string outname(OutName(&front));
-	outname = outname+"/init_intfc";
-	gview_plot_interface(outname.c_str(),front.interf);
+	double center[] = {0.5, 0.5, 0.2};
+	double vel[] = {0.0,0.0,0.0};
+ 	double a[] = {0.0,0.0,0.5};
+	double rad = 0.1;
+	double t = 1;
+	Drag* drag = new PointDrag(center,rad,vel,a,t);		
+	folder->addDrag(drag);
+
+	folder->doFolding();
+	FT_Draw(&front);
+	FT_AddTimeStepToCounter(&front);
 	clean_up(0);
 }
 
@@ -71,6 +60,8 @@ void initTestModule(Front* front, SURFACE* &surf) {
 	    initAirbag(front,infile,surf);
 	else if (prob_type == "Fabric")
 	    initFabric(front,infile,surf);
+	else
+	    printf("Unknown type = %s\n",mesg);
 	fclose(infile);
 }
 
