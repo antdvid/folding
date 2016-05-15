@@ -1,14 +1,13 @@
 #ifndef FT_SpringSolver_H
 #define FT_SpringSolver_H
-#include "fold_helper.h"
+#include "drag.h"
 #include "spring_solver.h"
 #include "folding_state.h"
 
 class FT_SpringVertex: public SpringVertex
 {
 public:
-   void getExternalAccel(double*); 
-   FT_SpringVertex(POINT* p):SpringVertex(p){}
+   FT_SpringVertex(POINT* p);
 };
 
 class FT_SpringSolver: public SpringSolver

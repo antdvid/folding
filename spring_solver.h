@@ -11,6 +11,7 @@ struct SpringVertex
     double* x;
     double v[3];
     double f[3];
+    double f_ext[3];
     std::vector<size_t> index_nb;
     std::vector<double> length0; 
     bool is_registered;
@@ -21,8 +22,7 @@ struct SpringVertex
     double* getCoords(){return Coords(m_p);}
     POINT* getPoint(){return m_p;}
     double* getVel() {return v;}
-    double* getAccel() {return f;}
-    virtual void getExternalAccel(double*) = 0;
+    double* getExternalAccel() {return f_ext;}
     void addNeighbor(size_t,double);
     bool isRegistered(){return is_registered;}
     void setRegistered(){is_registered = true;}

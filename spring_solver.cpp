@@ -69,8 +69,7 @@ void SpringSolver::computeAccel(SpringVertex* sv) {
 
 	if (sv->isRegistered())
 	{
-	    printf("sv->f = [%f %f %f]\n",
-		sv->f[0],sv->f[1],sv->f[2]);
+	    std::copy(sv->f_ext,sv->f_ext+3,sv->f);
 	    return;
 	}
 
@@ -100,9 +99,7 @@ void SpringSolver::computeAccel(SpringVertex* sv) {
         }
         for (int j = 0; j < dim; ++j)
         {
-	    double ext_f[3];
-	    sv->getExternalAccel(ext_f);
-            sv->f[j] += ext_f[j];
+            sv->f[j] += (sv->getExternalAccel())[j];
         }
 }
 

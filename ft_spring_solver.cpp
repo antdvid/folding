@@ -9,12 +9,12 @@ static bool isElasticCurve(CURVE* c) {
             hsbdry_type(c) == GORE_HSBDRY);
 }
 
-void FT_SpringVertex::getExternalAccel(double* accel) {
-    STATE* state = (STATE*)left_state(this->getPoint());
-    for (int i = 0; i < 3; ++i) {
-	accel[i] = state->other_accel[i] + 
-		   state->fluid_accel[i];
-    }
+FT_SpringVertex::FT_SpringVertex(POINT* p) : SpringVertex(p){
+    STATE* state = (STATE*)left_state(p);
+    std::copy(state->vel,state->vel+3,this->v);
+    for (int i = 0; i < 3; ++i)
+	f_ext[i] = state->fluid_accel[i] +
+		   state->other_accel[i];
 }
 
 void FT_SpringSolver::assemblePoints() {
@@ -24,26 +24,20 @@ void FT_SpringSolver::assemblePoints() {
     unsortIntfc(intfc);
     pts.clear();
 
-    int count = 0;
     SURFACE** s;
     intfc_surface_loop(intfc,s) {
-	printf("surf %d, wave_type = %d\n",count++,wave_type(*s));
         if (wave_type(*s) == ELASTIC_BOUNDARY)
             assemblePointsFromSurf(*s);
     }
 
-    count = 0;
     CURVE** c;
     intfc_curve_loop(intfc,c) {
-	printf("curve %d, wave_type = %d\n",count++,hsbdry_type(*c));
 	if (isElasticCurve(*c))
             assemblePointsFromCurve(*c);
     }
 
     NODE** n;
-    count = 0;
     intfc_node_loop(intfc,n) {
-	printf("node %d\n",count++);
 	assemblePointsFromNode(*n);
     }
 }
@@ -144,16 +138,14 @@ void FT_SpringSolver::presetPoints() {
     for (size_t i = 0; i < pts.size(); ++i) 
     {
 	drag->setVel(pts[i]->getCoords(),pts[i]->getVel());
-	drag->setAccel(pts[i]->getCoords(),pts[i]->getAccel());
+	drag->setAccel(pts[i]->getCoords(),pts[i]->getExternalAccel());
 	if (drag->isPresetPoint(pts[i]->getCoords())) {
-	    printf("Registered point = %f %f %f\n",
+	    printf("Registered point = [%f %f %f]\n",
 		pts[i]->getCoords()[0],pts[i]->getCoords()[1],
 		pts[i]->getCoords()[2]);
 	    pts[i]->setRegistered();
 	}
-	if (Mag3d(pts[i]->getAccel()) > MACH_EPS)
-	printf("accel at p[%lu] = %f %f %f\n",i,(pts[i]->getAccel())[0],
-		(pts[i]->getAccel())[1],(pts[i]->getAccel())[2]);
+	
     }	
 }
 

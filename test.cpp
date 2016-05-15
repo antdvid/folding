@@ -36,12 +36,22 @@ int main(int argc, char** argv)
 
 	Folder* folder = new Folder3d(front.interf,surf);
 	
-	double center[] = {0.5, 0.5, 0.2};
+	//point drag
+	/*double center[] = {0.5, 0.5, 0.2};
 	double vel[] = {0.0,0.0,0.0};
  	double a[] = {0.0,0.0,0.5};
 	double rad = 0.1;
-	double t = 1;
+	double t = 1.0;
 	Drag* drag = new PointDrag(center,rad,vel,a,t);		
+	*/
+	
+	//gravity drag
+	double center[] = {0.5, 0.5, 0.2};
+	double a[] = {0.0,0.0,4.0};
+	double rad = 1.1*(front.rect_grid)->h[0];
+	double t = 2;
+	Drag* drag = new GravityDrag(center,rad,a,t);
+
 	folder->addDrag(drag);
 
 	folder->doFolding();
