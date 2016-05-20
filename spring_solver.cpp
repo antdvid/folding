@@ -7,9 +7,6 @@
 //class SpringVeterx
 void SpringVertex::addNeighbor(size_t i_nb, double len0) 
 {
-    if (std::find(index_nb.begin(),index_nb.end(),i_nb) 
-		!= index_nb.end())
-        return;
     index_nb.push_back(i_nb);
     length0.push_back(len0);
 }
@@ -34,14 +31,6 @@ void SpringSolver::printPointList(std::string fname) {
 	std::copy(crds,crds+3,std::ostream_iterator<double>(ofs," "));
 	ofs << pts[i]->getPoint()<< "\n";
     }
-}
-
-int SpringSolver::findPoints(POINT* p) {
-    for (size_t i = 0; i < pts.size(); ++i) {
-	if (pts[i]->getPoint() == p) 
-	    return i;
-    } 
-    return -1;
 }
 
 void SpringSolver::checkVertexNeighbors() {
@@ -96,7 +85,9 @@ void SpringSolver::computeAccel(SpringVertex* sv) {
                 sv->f[j] += k*((len - sv->length0[i])*vec[j])/m;
                 sv->f[j] += lambda*v_rel[j]/m;
             }
+	    if (sv->length0[i] < 0) clean_up(ERROR);
         }
+	
         for (int j = 0; j < dim; ++j)
         {
             sv->f[j] += (sv->getExternalAccel())[j];
@@ -115,10 +106,10 @@ void SpringSolver::rk4SpringSolver(double dt, int n_loop) {
     size_t i, j;
     const int dim = 3;
 
-    //for (int n = 0; n < n_loop; ++n)
+    printf("Starting spring solver:\n");
     for (int n = 0; n < n_loop; ++n)
     {
-	printf("n = %d\n",n);
+	printf("    #sub_step  = %d/%d\n",n+1,n_loop);
     	for (i = 0; i < size; ++i)
             computeAccel(pts[i]);
 
@@ -182,10 +173,13 @@ void SpringSolver::rk4SpringSolver(double dt, int n_loop) {
 }
 
 void SpringSolver::doSolve(double t) {
-    double k = springParameter.k;
-    double m = springParameter.m;
-    double dt = sqrt(0.1*m/k); 
+    double dt = getTimeStepSize(); 
     int nt = t/dt+1;
     dt = t/nt;
     rk4SpringSolver(dt,nt);
+}
+
+double SpringSolver::getTimeStepSize() {
+    return sqrt(0.1*springParameter.m
+		/springParameter.k);
 }

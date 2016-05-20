@@ -1,4 +1,5 @@
 #include "ft_spring_solver.h"
+#include <unordered_map>
 
 static void unsortIntfc(INTERFACE*);
 static void unsortSurface(SURFACE*);
@@ -21,21 +22,27 @@ void FT_SpringSolver::assemblePoints() {
     //assemble tris list from input intfc
     //this function should be called before
     //spring interior dynamics computed
-    unsortIntfc(intfc);
-    pts.clear();
 
+    //clear hash table and point list
+    ht.clear();
+    pts.clear();
+    unsortIntfc(intfc);
+
+    //clone points from surface
     SURFACE** s;
     intfc_surface_loop(intfc,s) {
         if (wave_type(*s) == ELASTIC_BOUNDARY)
             assemblePointsFromSurf(*s);
     }
 
+    //clone points from curve
     CURVE** c;
     intfc_curve_loop(intfc,c) {
 	if (isElasticCurve(*c))
             assemblePointsFromCurve(*c);
     }
 
+    //clone points from node
     NODE** n;
     intfc_node_loop(intfc,n) {
 	assemblePointsFromNode(*n);
@@ -49,7 +56,9 @@ void FT_SpringSolver::assemblePointsFromSurf(SURFACE* s) {
         for (int i = 0; i < 3; ++i)
         {
             POINT* p = Point_of_tri(tri)[i];
-            if(Boundary_point(p)) continue;
+            if(Boundary_point(p) || sorted(p)) continue;
+	    sorted(p) = YES;
+
             int nt = 0;
             PointAndFirstRingTris(p,Hyper_surf_element(tri),
                             Hyper_surf(s),&nt,tris);
@@ -58,7 +67,7 @@ void FT_SpringSolver::assemblePointsFromSurf(SURFACE* s) {
             if (Point_of_tri(tris[j])[l] == p)
             {
                 POINT* p_nb = Point_of_tri(tris[j])[(l+1)%3];
-		setConnection(p,p_nb,tris[j]->side_length0[(l+1)%3]);
+		setConnection(p,p_nb,tris[j]->side_length0[l]);	
             }
         }
 }
@@ -91,7 +100,7 @@ void FT_SpringSolver::assemblePointsFromCurve(CURVE *curve) {
                             if (is_side_bdry(tris[j],side))
                                 continue;
                             POINT* p_nb = Point_of_tri(tris[j])[(side+1)%3];
-			    setConnection(p,p_nb,tris[j]->side_length0[(side+1)%3]);
+			    setConnection(p,p_nb,tris[j]->side_length0[side]);
                         }
                     }
                 }
@@ -117,20 +126,34 @@ void FT_SpringSolver::assemblePointsFromNode(NODE* n) {
     }
 }
 
+void FT_SpringSolver::updateVelocityToState() {
+    for (size_t i = 0; i < pts.size(); ++i) {
+	STATE* st = (STATE*)left_state(pts[i]->getPoint());
+	std::copy(pts[i]->v,pts[i]->v+3,st->vel);
+    }
+}
+
+void FT_SpringSolver::updateVelocityFromState() {
+    for (size_t i = 0; i < pts.size(); ++i) {
+        STATE* st = (STATE*)left_state(pts[i]->getPoint());
+        std::copy(st->vel,st->vel+3,pts[i]->v);
+    }
+}
+
 void FT_SpringSolver::setConnection(POINT* p1, POINT* p2, double length0) {
     POINT* points[2] = {p1,p2};
     for (int i = 0; i < 2; ++i) {
-	if (sorted(points[i])) continue;
-	sorted(points[i]) = YES;
-	points[i]->indx = pts.size();
-	pts.push_back(new FT_SpringVertex(points[i]));
+	if (ht.find(points[i]) == ht.end()) {
+	    //not inserted yet
+	    ht[points[i]] = pts.size();
+	    pts.push_back(new FT_SpringVertex(points[i]));
+	}
     }
     if (length0 < 0)
 	length0 = separation(p1,p2,3);
-    size_t ind = static_cast<size_t>(p1->indx);
-    size_t ind_nb = static_cast<size_t>(p2->indx);
+    size_t ind = ht[p1];
+    size_t ind_nb = ht[p2];
     pts[ind]->addNeighbor(ind_nb,length0);
-    pts[ind_nb]->addNeighbor(ind,length0);
 }
 
 void FT_SpringSolver::presetPoints() {
@@ -154,6 +177,11 @@ void FT_SpringSolver::setDrag(Drag* dg) {
     presetPoints();
 }
 
+void FT_SpringSolver::resetVelocity() {
+    for (size_t i = 0; i < pts.size(); ++i) 
+	std::fill(pts[i]->v,pts[i]->v+3,0);
+}
+
 static void unsortIntfc(INTERFACE* intfc) {
     SURFACE** s;
     intfc_surface_loop(intfc,s)
@@ -169,7 +197,6 @@ static void unsortSurface(SURFACE* s) {
         for (int i = 0; i < 3; ++i) {
             POINT* p = Point_of_tri(t)[i];
             sorted(p) = NO;
-            p->indx = -1;
         }
     }
 }
@@ -179,7 +206,6 @@ static void unsortCurve(CURVE* c) {
     curve_bond_loop(c,b) {
         sorted(b->start) = NO;
         sorted(b->end) = NO;
-        b->start->indx = b->end->indx = -1;
     }
 }
 

@@ -46,6 +46,7 @@ public:
     void setParameters(double,double,double);
     void printAdjacencyList(std::string);
     void printPointList(std::string);
+    double getTimeStepSize();
     virtual void doSolve(double);
     SpringSolver(){}
     SpringSolver(Front* front):m_front(front){}
@@ -57,7 +58,7 @@ public:
     //a vector of SpringVertex and its adjacency
     virtual void assemblePoints() = 0;
     //implement a function to find preset points
-    //make its is_registered to true
+    //make its is_registered to be true
     virtual void presetPoints() = 0;
 protected:
     std::vector<SpringVertex*> pts;
