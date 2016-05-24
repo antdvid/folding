@@ -58,6 +58,7 @@ void SpringSolver::computeAccel(SpringVertex* sv) {
 
 	if (sv->isRegistered())
 	{
+	    setPresetVelocity(sv);
 	    std::copy(sv->f_ext,sv->f_ext+3,sv->f);
 	    return;
 	}

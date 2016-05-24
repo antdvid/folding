@@ -60,6 +60,10 @@ public:
     //implement a function to find preset points
     //make its is_registered to be true
     virtual void presetPoints() = 0;
+
+    //this function can be overwritten if 
+    //you want to prescribe the velocity of some points
+    virtual void setPresetVelocity(SpringVertex* sv) {};
 protected:
     std::vector<SpringVertex*> pts;
 };

@@ -1,5 +1,6 @@
 #include "ft_spring_solver.h"
 #include <unordered_map>
+#include <iostream>
 
 static void unsortIntfc(INTERFACE*);
 static void unsortSurface(SURFACE*);
@@ -157,19 +158,23 @@ void FT_SpringSolver::setConnection(POINT* p1, POINT* p2, double length0) {
 }
 
 void FT_SpringSolver::presetPoints() {
-    printf("Entering presetPoints()\n");
+    drag->setTimeStepSize(this->getTimeStepSize());	
     for (size_t i = 0; i < pts.size(); ++i) 
     {
-	drag->setVel(pts[i]->getCoords(),pts[i]->getVel());
-	drag->setAccel(pts[i]->getCoords(),pts[i]->getExternalAccel());
 	if (drag->isPresetPoint(pts[i]->getCoords())) {
 	    printf("Registered point = [%f %f %f]\n",
 		pts[i]->getCoords()[0],pts[i]->getCoords()[1],
 		pts[i]->getCoords()[2]);
 	    pts[i]->setRegistered();
 	}
-	
+	drag->setVel(pts[i]);
+	drag->setAccel(pts[i]);	
     }	
+}
+
+void FT_SpringSolver::setPresetVelocity(SpringVertex* sv) {
+    drag->setTimeStepSize(this->getTimeStepSize());
+    drag->setVel(sv);
 }
 
 void FT_SpringSolver::setDrag(Drag* dg) {

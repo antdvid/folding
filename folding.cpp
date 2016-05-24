@@ -10,6 +10,10 @@ double Folder::max_dt = 0.01;
 
 void Folder::addDragsFromFile(std::string fname) {
     std::ifstream ifs(fname);
+    if (!ifs.is_open()) {
+	std::cout << "File \"" << fname << 
+	"\" doesn't exist" << std::endl;
+    }
     std::string line;
     double tmp;
     while (getline(ifs,line)) {
@@ -39,15 +43,14 @@ void Folder3d::doFolding() {
     //configure spring solver
     sp_solver->assemblePoints();
 
-    /********debugging*********/
-    sp_solver->printAdjacencyList("adj_list.dat");
-    sp_solver->printPointList("pts_list.dat");
     /**************************/
     sp_solver->setParameters(k,lambda,m);
     for (std::vector<Drag*>::iterator it = drags.begin();
 	 it != drags.end(); ++it) 
     {
-	printf("folding base on %lu drag ...\n",it-drags.begin());
+	if (*it == nullptr) continue;
+	printf("folding base on %lu drag: %s ...\n",
+		it-drags.begin(),(*it)->id().c_str());
 	doFolding(*it,sp_solver,cd_solver);
 	sp_solver->resetVelocity();
     }
@@ -81,10 +84,8 @@ void Folder3d::doFolding(
 	cd_solver->setTimeStepSize(dt);
 
     	sp_solver->doSolve(dt);
-	sp_solver->updateVelocityToState();
 
 	//cd_solver->resolveCollision();
-	sp_solver->updateVelocityFromState();
 
 	t = t + dt;
 	if (movie->isMovieTime(t))
@@ -159,4 +160,6 @@ static void setCollisionFreePoints3d(INTERFACE* intfc, Drag* drag)
 Folder3d::Folder3d(INTERFACE* intfc, SURFACE* s) : m_intfc(intfc)
 {}
 
-Folder3d::~Folder3d() {}
+Folder3d::~Folder3d() {
+    if (movie) delete movie;
+}

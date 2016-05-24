@@ -1,9 +1,9 @@
 #ifndef FT_SpringSolver_H
 #define FT_SpringSolver_H
-#include "drag.h"
 #include "spring_solver.h"
 #include "../iFluid/ifluid_state.h"
 #include <unordered_map>
+#include "drag.h"
 
 class FT_SpringVertex: public SpringVertex
 {
@@ -24,6 +24,7 @@ private:
 public: 
     void assemblePoints();
     void presetPoints();
+    void setPresetVelocity(SpringVertex* sv);
     void setDrag(Drag*); 
     void updateVelocityToState();
     void updateVelocityFromState();
