@@ -262,13 +262,15 @@ bool TuckDrag::isPresetPoint(double* p) {
 	v1[i] = p[i] - spinOrig[i];
 	dot3d += v1[i] * spinDir[i];
     }    
-    if (dot3d < EPS && fabs(Mag3d(v1)-radius) < band) {
+    if (fabs(dot3d) < EPS && fabs(Mag3d(v1)-radius) < band) {
 	return true;
     }
+    //including apex and load node
     else if (Mag3d(v1) < band)
-    {
 	return true;
-    }
+    else if (sqrt(v1[0]*v1[0]+v1[1]*v1[1]) < band &&
+	     p[2] < spinOrig[2])
+	return true;
     else
 	return false;
 }
@@ -291,6 +293,7 @@ Drag* TuckDrag::clone(const Drag::Info& info) {
 	td->radius = *(it+7);
 	td->band = *(it+8);
 	td->m_t = *(it+9);
+	td->setLoadNodeVel();
 	return td;
     }
 }
@@ -305,10 +308,13 @@ void TuckDrag::setVel(SpringVertex* sv) {
     for (size_t i = 0; i < 3; ++i) {
 	vec[i] = p0[i] - spinOrig[i];
     }
+
+    //make the apex fixed
     if (Mag3d(vec) < band) {
 	std::fill(v,v+3,0);
 	return;
     }
+    
     double crx[3];
     Cross3d(vec,spinDir,crx);
     if (m_dt < EPS)
@@ -321,4 +327,16 @@ void TuckDrag::setVel(SpringVertex* sv) {
     for (size_t i = 0; i < 3; ++i) {
         v[i] = (p1[i] - p0[i])/m_dt;
     }
+    //let the load node go down 
+    if (sqrt(vec[0]*vec[0]+vec[1]*vec[1]) < band &&
+	p0[2] < spinOrig[2]) {
+	v[0] = v[1] = 0.0;
+	v[2] = load_v;
+	return;
+    }
+}
+
+void TuckDrag::setLoadNodeVel() {
+    double t = angVel*m_t;
+    load_v = radius*sin(t)/m_t;
 }

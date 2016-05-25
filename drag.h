@@ -108,8 +108,10 @@ public:
 
 class TuckDrag : public SpinDrag {
 public:
-    double radius;
-    double band;
+    double radius; //radius of the surface
+    double band;   //tolerance
+    double load_v; //velocity of load node
+    void setLoadNodeVel();
     bool isPresetPoint(double*);
     std::string id() {return "TuckDrag";}
     Drag* clone(const Drag::Info&);

@@ -30,7 +30,7 @@ void Folder3d::doFolding() {
     FT_SpringSolver* sp_solver = new FT_SpringSolver(m_intfc);
     CollisionSolver* cd_solver = new CollisionSolver3d();
     
-    double k = 200;
+    double k = 800;
     double lambda = 1.0;
     double m = 0.01;
     //configure collision solver
@@ -54,6 +54,7 @@ void Folder3d::doFolding() {
 	doFolding(*it,sp_solver,cd_solver);
 	sp_solver->resetVelocity();
     }
+    straightenStrings();
 }
 
 void Folder3d::doFolding(
@@ -163,3 +164,37 @@ Folder3d::Folder3d(INTERFACE* intfc, SURFACE* s) : m_intfc(intfc)
 Folder3d::~Folder3d() {
     if (movie) delete movie;
 }
+
+void Folder3d::straightenStrings() {
+    //straighten the string curves
+    CURVE** c;
+    intfc_curve_loop(m_intfc,c) {
+        if (hsbdry_type(*c) != STRING_HSBDRY) continue;
+        double dir[3] = {0};
+        for (size_t i = 0; i < 3; ++i)
+            dir[i] = Coords((*c)->end->posn)[i] -
+                     Coords((*c)->start->posn)[i];
+        //normalize dir
+        double len = Mag3d(dir);
+        for (size_t i = 0; i < 3; ++i)
+            dir[i] /= len;
+
+	//count how many bonds in a curve
+        int count = 0;
+        BOND* b;
+	curve_bond_loop(*c,b)
+	    count++;
+
+        //move bonds
+        double len0 = len/count;
+        count = 1;
+        for (b = (*c)->first; b != (*c)->last; b = b->next) {
+            POINT* p = b->end;
+            for (size_t i = 0; i < 3; ++i)
+                Coords(p)[i] = Coords((*c)->start->posn)[i]
+                             + (count)*len0 * dir[i];
+            count++;
+        }
+   }
+}
+

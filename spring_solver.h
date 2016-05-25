@@ -26,6 +26,7 @@ struct SpringVertex
     void addNeighbor(size_t,double);
     bool isRegistered(){return is_registered;}
     void setRegistered(){is_registered = true;}
+    void unsetRegistered(){is_registered = false;}
 };
 
 class SpringSolver 

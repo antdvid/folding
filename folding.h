@@ -34,6 +34,7 @@ public:
     void setupMovie(std::string,double);
 private:
     void doFolding(Drag*,FT_SpringSolver*,CollisionSolver*);
+    void straightenStrings();
     INTERFACE* m_intfc;
     Movie* movie;
 };

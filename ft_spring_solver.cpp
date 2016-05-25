@@ -167,6 +167,9 @@ void FT_SpringSolver::presetPoints() {
 		pts[i]->getCoords()[2]);
 	    pts[i]->setRegistered();
 	}
+	else
+	    pts[i]->unsetRegistered();
+
 	drag->setVel(pts[i]);
 	drag->setAccel(pts[i]);	
     }	
