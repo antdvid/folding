@@ -181,6 +181,6 @@ void SpringSolver::doSolve(double t) {
 }
 
 double SpringSolver::getTimeStepSize() {
-    return sqrt(0.1*springParameter.m
+    return 0.1*sqrt(springParameter.m
 		/springParameter.k);
 }

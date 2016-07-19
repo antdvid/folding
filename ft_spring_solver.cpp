@@ -35,19 +35,24 @@ void FT_SpringSolver::assemblePoints() {
         if (wave_type(*s) == ELASTIC_BOUNDARY)
             assemblePointsFromSurf(*s);
     }
+    printf("#%lu num of points in surf\n",pts.size());
 
     //clone points from curve
     CURVE** c;
     intfc_curve_loop(intfc,c) {
+	//do not assemble strings
+	if (hsbdry_type(*c) == STRING_HSBDRY) continue;
 	if (isElasticCurve(*c))
             assemblePointsFromCurve(*c);
     }
+    printf("#%lu num of points in curve\n",pts.size());
 
     //clone points from node
     NODE** n;
     intfc_node_loop(intfc,n) {
 	assemblePointsFromNode(*n);
     }
+    printf("#%lu num of points in nodes\n",pts.size());
 }
 
 void FT_SpringSolver::assemblePointsFromSurf(SURFACE* s) {
@@ -113,6 +118,8 @@ void FT_SpringSolver::assemblePointsFromNode(NODE* n) {
     for (CURVE** c = n->in_curves; c && *c; ++c)
     {
 	if (!isElasticCurve(*c)) continue;
+	//do not fold strings
+	if (hsbdry_type(*c) == STRING_HSBDRY) continue;
 	BOND* b = (*c)->last;
 	POINT* p_nb = b->start;
 	setConnection(n->posn,p_nb,b->length0);	
@@ -121,6 +128,8 @@ void FT_SpringSolver::assemblePointsFromNode(NODE* n) {
     for (CURVE** c = n->out_curves; c && *c; ++c)
     {
 	if (!isElasticCurve(*c)) continue;
+	//do not fold strings
+	if (hsbdry_type(*c) == STRING_HSBDRY) continue;
 	BOND* b = (*c)->first;
 	POINT* p_nb = b->end;
 	setConnection(n->posn,p_nb,b->length0);	
@@ -161,8 +170,8 @@ void FT_SpringSolver::presetPoints() {
     drag->setTimeStepSize(this->getTimeStepSize());	
     for (size_t i = 0; i < pts.size(); ++i) 
     {
-	if (drag->isPresetPoint(pts[i]->getCoords())) {
-	    printf("Registered point = [%f %f %f]\n",
+	if (drag->isPresetPoint(pts[i])) {
+	    printf("Registered point = %f %f %f\n",
 		pts[i]->getCoords()[0],pts[i]->getCoords()[1],
 		pts[i]->getCoords()[2]);
 	    pts[i]->setRegistered();

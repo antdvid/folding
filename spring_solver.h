@@ -15,6 +15,10 @@ struct SpringVertex
     std::vector<size_t> index_nb;
     std::vector<double> length0; 
     bool is_registered;
+    //this could be used to identify
+    //point type at runtime, should be 
+    //set up before applying drag
+    int point_type;
     
     SpringVertex(POINT* p):m_p(p),x(Coords(p)),
 			   is_registered(false){}

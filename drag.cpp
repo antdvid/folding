@@ -1,6 +1,13 @@
 #include "drag.h"
 #include <iostream>
-const double EPS = 1e-10;
+const double EPS = 1e-15;
+static double pointToLineDistance(double[],double[], double[]);
+static void spinToAxis(double c[], double dir[], double theta, double p[]);
+static bool isPointInBox(double*,  double[][3]);
+static bool isPointOnLine(double[],double[],double[], double);
+static bool isPointInBall(double p[], double c[], double r);
+double Drag::m_thickness = 0.001;
+double Drag::m_tol = 0.001;
 
 static double distance_between(const double p1[], 
 		const double p2[], int dim) {
@@ -28,6 +35,32 @@ Drag* Drag::dragFactory(const Drag::Info& info) {
     return NULL;
 }
 
+static void spinToAxis(double cen[], double dir[], double theta, double p[])
+{
+    double a,b,c,u,v,w,x,y,z;
+    //normalize dir
+    double len = Mag3d(dir);
+    if (len < EPS)
+    {
+	std::cout << "Warning: len < EPS" << std::endl;
+        printf("dir = %f %f %f\n",dir[0],dir[1],dir[2]);
+	return;
+    }
+    else
+    for (int i = 0; i < 3; ++i)
+	dir[i] /= len;
+
+    a = cen[0]; b = cen[1]; c = cen[2];
+    u = dir[0]; v = dir[1]; w = dir[2];
+    x = p[0]; y = p[1]; z = p[2];
+    p[0] = (a*(v*v+w*w)-u*(b*v+c*w-u*x-v*y-w*z))*(1-cos(theta)) + 
+            x*cos(theta) + (-c*v+b*w-w*y+v*z)*sin(theta);
+    p[1] = (b*(u*u+w*w)-v*(a*u+c*w-u*x-v*y-w*z))*(1-cos(theta)) +
+            y*cos(theta) + (c*u-a*w+w*x-u*z)*sin(theta);
+    p[2] = (c*(u*u+v*v)-w*(a*u+b*v-u*x-v*y-w*z))*(1-cos(theta)) +
+            z*cos(theta) + (-b*u+a*v-v*x+u*y)*sin(theta);
+}
+
 // Point Drag
 Drag* PointDrag::clone(const Drag::Info& info) {
     if (info.data().size() != 11) {
@@ -45,7 +78,8 @@ Drag* PointDrag::clone(const Drag::Info& info) {
     }
 }
 
-bool PointDrag::isPresetPoint(double* p) {
+bool PointDrag::isPresetPoint(SpringVertex* sv) {
+    double *p = sv->getCoords();
     return rad*rad > (p[0]-cent[0])*(p[0]-cent[0]) +
                      (p[1]-cent[1])*(p[1]-cent[1]) +
                      (p[2]-cent[2])*(p[2]-cent[2]);
@@ -108,7 +142,8 @@ Drag* GravityDrag::clone(const Drag::Info& info) {
 }
 
 //MultiplePointDrag
-bool MultiplePointDrag::isPresetPoint(double *p) {
+bool MultiplePointDrag::isPresetPoint(SpringVertex* sv) {
+    double *p = sv->getCoords();
     if (getDragPointNumber(p) != -1)
 	return true;
     else
@@ -179,41 +214,49 @@ Drag* MultiplePointDrag::clone(const Drag::Info& info) {
     }
 }
 
-//spinDrag
-void SpinDrag::spinToAxis(double cen[], double dir[], double theta, double p[])
-{
-    double a,b,c,u,v,w,x,y,z;
-    //normalize dir
-    double len = 0;
-    for (int i = 0; i < 3; ++i)
-	len += dir[i]*dir[i];
-    if (len < EPS)
-	return;
-    else
-    for (int i = 0; i < 3; ++i)
-	dir[i] /= sqrt(len);
-
-    a = cen[0]; b = cen[1]; c = cen[2];
-    u = dir[0]; v = dir[1]; w = dir[2];
-    x = p[0]; y = p[1]; z = p[2];
-    p[0] = (a*(v*v+w*w)-u*(b*v+c*w-u*x-v*y-w*z))*(1-cos(theta)) + 
-            x*cos(theta) + (-c*v+b*w-w*y+v*z)*sin(theta);
-    p[1] = (b*(u*u+w*w)-v*(a*u+c*w-u*x-v*y-w*z))*(1-cos(theta)) +
-            y*cos(theta) + (c*u-a*w+w*x-u*z)*sin(theta);
-    p[2] = (c*(u*u+v*v)-w*(a*u+b*v-u*x-v*y-w*z))*(1-cos(theta)) +
-            z*cos(theta) + (-b*u+a*v-v*x+u*y)*sin(theta);
+//FoldDrag
+bool FoldDrag::isPresetPoint(SpringVertex* sv) {
+    double *p = sv->getCoords();
+    double dist = pointToLineDistance(p,spinOrig,spinDir);
+    if (dist < getThickness())
+    {
+	sv->point_type = FREE_POINT;
+	return false;
+    }
+    else if (isPointInBox(p,foldingBox)) {
+	sv->point_type = ROTATE_POINT;
+	return true;
+    }
+    else {
+	sv->point_type = STATIC_POINT;
+        return true;
+    }
 }
 
-bool SpinDrag::isPresetPoint(double *p) {
-    for (size_t i = 0; i < 3; ++i)
-	if (p[i] < foldingBox[0][i] || p[i] > foldingBox[1][i])
+static double pointToLineDistance(double p[],double orig[], double dir[]) {
+    double v[3] = {0};
+    double proj_v[3] = {0};
+    double len = Mag3d(dir);
+    for (size_t i = 0; i < 3; ++i) {
+	v[i] = p[i] - orig[i];
+	dir[i] /= len;
+	proj_v[i] = v[i]*dir[i];
+	v[i] = v[i] - proj_v[i];
+    }
+    return Mag3d(v);
+}
+
+static bool isPointInBox(double* p, double box[2][3]) {
+    for (size_t i = 0; i < 3; ++i) {
+	if (p[i] < box[0][i] || p[i] > box[1][i])
 	    return false;
+    } 
     return true;
 }
 
-void SpinDrag::setVel(SpringVertex* sv) {
-    if (sv->isRegistered()) {
-	double *p0 = sv->getCoords();
+void FoldDrag::setVel(SpringVertex* sv) {
+    double *p0 = sv->getCoords();
+    if (sv->point_type == ROTATE_POINT) {
 	double p1[3];
 	std::copy(p0,p0+3,p1);
 	if (m_dt < EPS)
@@ -228,13 +271,16 @@ void SpinDrag::setVel(SpringVertex* sv) {
 	    v[i] = (p1[i] - p0[i])/m_dt;
 	}
     }
+    else if (sv->point_type == STATIC_POINT) {
+	std::fill(sv->getVel(),sv->getVel()+3,0);
+    }
     else 
 	return;
 }
 
-void SpinDrag::setAccel(SpringVertex* sv) {}
+void FoldDrag::setAccel(SpringVertex* sv) {}
 
-Drag* SpinDrag::clone(const Drag::Info& info) {
+Drag* FoldDrag::clone(const Drag::Info& info) {
     if (info.data().size() != 14) {
         std::cout << "Spin drag should have "
                   << "9 parameters, "
@@ -244,7 +290,7 @@ Drag* SpinDrag::clone(const Drag::Info& info) {
         return NULL;
     }
     else {
-        SpinDrag* td = new SpinDrag();
+        FoldDrag* td = new FoldDrag();
         const double* it = &(info.data().front());
         std::copy(it,it+3,td->spinOrig);
         std::copy(it+3,it+6,td->spinDir);
@@ -256,29 +302,53 @@ Drag* SpinDrag::clone(const Drag::Info& info) {
     }
 }
 
-bool TuckDrag::isPresetPoint(double* p) {
-    double v1[3], dot3d = 0;
+//TuckDrag
+static bool isPointOnLine(double p[],  double p1[], 
+		     double p2[], double tol) {
+    double v[3];
+    double v1[3], v2[3];
     for (size_t i = 0; i < 3; ++i) {
-	v1[i] = p[i] - spinOrig[i];
-	dot3d += v1[i] * spinDir[i];
-    }    
-    if (fabs(dot3d) < EPS && fabs(Mag3d(v1)-radius) < band) {
-	return true;
+	v[i] = p2[i] - p1[i];
+	v1[i] = p[i]  - p1[i];
+	v2[i] = p[i]  - p2[i];
     }
-    //including apex and load node
-    else if (Mag3d(v1) < band)
-	return true;
-    else if (sqrt(v1[0]*v1[0]+v1[1]*v1[1]) < band &&
-	     p[2] < spinOrig[2])
-	return true;
+    if (pointToLineDistance(p,p1,v) < tol && 
+	Dot3d(v1,v2) < 0)  {
+	return true;		
+    }     
     else
 	return false;
 }
 
+static bool isPointInBall(double p[], double c[], double r) {
+    double v[3];
+    std::transform(p,p+3,c,v,std::minus<double>());
+    return (Mag3d(v) < r) ? true : false;
+}
+
+bool TuckDrag::isPresetPoint(SpringVertex* sv) {
+    double* p = sv->getCoords();
+    if (isPointOnLine(p,tuck_line[0],tuck_line[1],getTolerance()))
+    {
+	sv->point_type = ROTATE_POINT;
+	return true;
+    }
+    else if (isPointInBox(p,constrain_box))
+    {
+        sv->point_type = STATIC_POINT;
+	return true;
+    }
+    else
+    {
+	sv->point_type = FREE_POINT;
+	return false;
+    }
+}
+
 Drag* TuckDrag::clone(const Drag::Info& info) {
-    if (info.data().size() != 10) {
+    if (info.data().size() != 20) {
 	std::cout << "Tuck drag should have "
-                  << "10 parameters, "
+                  << "20 parameters, "
                   << "but " << info.data().size()
                   << " parameters are given"
                   << std::endl;
@@ -287,13 +357,14 @@ Drag* TuckDrag::clone(const Drag::Info& info) {
     else {
 	TuckDrag* td = new TuckDrag();
 	const double* it = &(info.data().front());
-	std::copy(it,it+3,td->spinOrig);
-	std::copy(it+3,it+6,td->spinDir);
-	td->angVel = *(it+6);
-	td->radius = *(it+7);
-	td->band = *(it+8);
-	td->m_t = *(it+9);
-	td->setLoadNodeVel();
+	std::copy(it,    it+3, td->tuck_line[0]);
+	std::copy(it+3,  it+6, td->tuck_line[1]);
+	std::copy(it+6,  it+9, td->spinOrig);
+	std::copy(it+9, it+12, td->spinDir);
+	td->angVel = *(it+12);
+	std::copy(it+13, it+16, td->constrain_box[0]);
+	std::copy(it+16, it+19, td->constrain_box[1]);
+	td->m_t = *(it+19);
 	return td;
     }
 }
@@ -304,39 +375,93 @@ void TuckDrag::setVel(SpringVertex* sv) {
     double p1[3];
     std::copy(p0,p0+3,p1);
 
-    double vec[3];
-    for (size_t i = 0; i < 3; ++i) {
-	vec[i] = p0[i] - spinOrig[i];
+    if (sv->point_type == ROTATE_POINT) {
+    	double theta = angVel * m_dt;
+    	spinToAxis(spinOrig,spinDir,theta,p1);
+    	for (size_t i = 0; i < 3; ++i)
+            v[i] = (p1[i] - p0[i])/m_dt;
     }
+    else 
+	return;
+}
 
-    //make the apex fixed
-    if (Mag3d(vec) < band) {
-	std::fill(v,v+3,0);
-	return;
+void TuckDrag::setAccel(SpringVertex* sv) {
+    return;
+}
+
+//closeUmbrellaDrag
+bool CloseUmbrellaDrag::isPresetPoint(SpringVertex* sv) {
+    double d_theta = 2*PI/num_tuck_line;
+    double theta = 0;
+    double *p = sv->getCoords();
+    double len = distance_between_positions(p,spinOrig,3);
+    if (!isPointInBall(p,spinOrig,EPS)) {
+        theta = (p[1] > spinOrig[1]) ? acos((p[0]-spinOrig[0])/len) :
+				       acos((p[0]-spinOrig[0])/len) + PI;
+	double theta_l = floor(theta/d_theta)*d_theta;
+	double theta_r = ceil(theta/d_theta)*d_theta;
+	double dist = std::min(len*fabs(sin(theta-theta_l)),len*fabs(sin(theta-theta_r)));
+	if (dist < getTolerance()) {
+	    sv->point_type = ROTATE_POINT;
+	    return true;
+	}
+	else {
+	    sv->point_type = FREE_POINT;
+	    return false;
+	}
     }
-    
-    double crx[3];
-    Cross3d(vec,spinDir,crx);
-    if (m_dt < EPS)
-        std::cout << "Warning: m_dt = " << m_dt
-                  << " is too small. "
-                  << "Have you called setTimeStepSize() before using it?"
-                  << std::endl;
-    double theta = angVel * m_dt;
-    spinToAxis(spinOrig,crx,theta,p1);
-    for (size_t i = 0; i < 3; ++i) {
-        v[i] = (p1[i] - p0[i])/m_dt;
-    }
-    //let the load node go down 
-    if (sqrt(vec[0]*vec[0]+vec[1]*vec[1]) < band &&
-	p0[2] < spinOrig[2]) {
-	v[0] = v[1] = 0.0;
-	v[2] = load_v;
-	return;
+    else {
+	sv->point_type = STATIC_POINT;
+    	return true;
     }
 }
 
-void TuckDrag::setLoadNodeVel() {
-    double t = angVel*m_t;
-    load_v = radius*sin(t)/m_t;
+void CloseUmbrellaDrag::setVel(SpringVertex* sv) {
+    double *p0 = sv->getCoords();
+    double *v = sv->getVel();
+    double p1[3];
+    std::copy(p0,p0+3,p1);
+    double rotateDir[3];
+    double p_to_o[3];
+    std::transform(p0,p0+3,spinOrig,p_to_o,std::minus<double>());
+
+    if (sv->point_type == ROTATE_POINT) {
+        double theta = angVel * m_dt;
+	Cross3d(p_to_o,spinDir,rotateDir);
+	if (Mag3d(rotateDir) < EPS) return;
+        spinToAxis(spinOrig,rotateDir,theta,p1);
+        for (size_t i = 0; i < 3; ++i)
+            v[i] = (p1[i] - p0[i])/m_dt;
+    }
+    else
+        return;
+}
+
+Drag* CloseUmbrellaDrag::clone(const Drag::Info& info) {
+    if (info.data().size() != 9) {
+        std::cout << "closeUmbrellaDrag should have "
+                  << "9 parameters, "
+                  << "but " << info.data().size()
+                  << " parameters are given"
+                  << std::endl;
+        return NULL;
+    }
+    else {
+        CloseUmbrellaDrag* cud = new CloseUmbrellaDrag();
+        const double* it = &(info.data().front());
+	cud->num_tuck_line = *it;
+	std::copy(it+1,it+4,cud->spinOrig);	
+	std::copy(it+4,it+7,cud->spinDir);	
+	cud->angVel = *(it+7);
+        cud->m_t = *(it+8);
+        return cud;
+    }
+}
+
+//RelaxDrag
+Drag* RelaxDrag::clone(const Drag::Info& info) {
+    RelaxDrag* rd = new RelaxDrag();
+    const double* it = &(info.data().front());
+    rd->m_t = *it;
+    return rd;
 }

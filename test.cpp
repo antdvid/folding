@@ -36,7 +36,7 @@ int main(int argc, char** argv)
 	Folder* folder = new Folder3d(front.interf,surf);
 	
 	folder->addDragsFromFile("./fold_plan");
-	folder->setupMovie("fold_movie",0.1);
+	folder->setupMovie("fold_movie",1);
 
 	folder->doFolding();
 	FT_Draw(&front);

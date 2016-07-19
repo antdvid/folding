@@ -30,8 +30,8 @@ void Folder3d::doFolding() {
     FT_SpringSolver* sp_solver = new FT_SpringSolver(m_intfc);
     CollisionSolver* cd_solver = new CollisionSolver3d();
     
-    double k = 800;
-    double lambda = 1.0;
+    double k = 1000;
+    double lambda = 5;
     double m = 0.01;
     //configure collision solver
     cd_solver->assembleFromInterface(m_intfc,getFrameStepSize());
@@ -42,9 +42,12 @@ void Folder3d::doFolding() {
   
     //configure spring solver
     sp_solver->assemblePoints();
+    sp_solver->setParameters(k,lambda,m);
 
     /**************************/
-    sp_solver->setParameters(k,lambda,m);
+    Drag::setTolerance(m_intfc->table->rect_grid.h[0]*0.5);
+    Drag::setThickness(0.001);
+
     for (std::vector<Drag*>::iterator it = drags.begin();
 	 it != drags.end(); ++it) 
     {
@@ -128,8 +131,7 @@ static void setCollisionFreePoints3d(INTERFACE* intfc, Drag* drag)
         while(next_point(intfc,&p,&hse,&hs)){
             STATE* sl = (STATE*)left_state(p);
             sl->is_fixed = false;
-            if (drag->isPresetPoint(Coords(p))||
-                wave_type(hs) == NEUMANN_BOUNDARY ||
+            if (wave_type(hs) == NEUMANN_BOUNDARY ||
                 wave_type(hs) == MOVABLE_BODY_BOUNDARY)
             {
                 sl->is_fixed = true;
@@ -147,15 +149,6 @@ static void setCollisionFreePoints3d(INTERFACE* intfc, Drag* drag)
                 sl->is_fixed = true;
             }
         }
-        NODE** n;
-        intfc_node_loop(intfc,n){
-            STATE* sl = (STATE*)left_state((*n)->posn);
-            sl->is_fixed = false;
-            if (drag->isPresetPoint(Coords((*n)->posn)))
-            {
-                sl->is_fixed = true;
-            }
-        }
 }       /* setCollisionFreePoints3d() */
 
 Folder3d::Folder3d(INTERFACE* intfc, SURFACE* s) : m_intfc(intfc)
@@ -165,11 +158,53 @@ Folder3d::~Folder3d() {
     if (movie) delete movie;
 }
 
+static int numConnectCurves(NODE* n) {
+    int ans = 0;
+    for (CURVE** c = n->in_curves; c && *c; ++c)
+	ans++;
+
+    for (CURVE** c = n->out_curves; c && *c; ++c)
+	ans++;
+    return ans;
+}
+
 void Folder3d::straightenStrings() {
+    std::cout << "Straighten the string" << std::endl;
     //straighten the string curves
     CURVE** c;
+    double z_avg = 0;
+    int c_count = 1;
     intfc_curve_loop(m_intfc,c) {
         if (hsbdry_type(*c) != STRING_HSBDRY) continue;
+	//count how many bonds in a curve
+        int count = 0;
+        BOND* b;
+	curve_bond_loop(*c,b)
+	    count++;
+
+	//adjust load node
+	POINT* p1, *p2;
+	p1 = (*c)->start->posn;
+	p2 = (*c)->end->posn;
+	if (numConnectCurves((*c)->start) < numConnectCurves((*c)->end))
+	    std::swap(p1,p2); //make sure p1 is load node;
+
+	double l = (*c)->first->length0 * count;
+	double new_z  =  Coords(p2)[2] - sqrt(sqr(l) 
+		       - sqr(Coords(p1)[0]-Coords(p2)[0]) 
+		       - sqr(Coords(p1)[1]-Coords(p2)[1]));
+	z_avg = z_avg + (new_z - z_avg)/(c_count++);
+	Coords(p1)[2] = z_avg;
+    }
+
+    intfc_curve_loop(m_intfc,c) {
+        if (hsbdry_type(*c) != STRING_HSBDRY) continue;
+	//count how many bonds in a curve
+        int count = 0;
+        BOND* b;
+	curve_bond_loop(*c,b)
+	    count++;
+
         double dir[3] = {0};
         for (size_t i = 0; i < 3; ++i)
             dir[i] = Coords((*c)->end->posn)[i] -
@@ -178,12 +213,6 @@ void Folder3d::straightenStrings() {
         double len = Mag3d(dir);
         for (size_t i = 0; i < 3; ++i)
             dir[i] /= len;
-
-	//count how many bonds in a curve
-        int count = 0;
-        BOND* b;
-	curve_bond_loop(*c,b)
-	    count++;
 
         //move bonds
         double len0 = len/count;

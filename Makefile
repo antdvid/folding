@@ -1,4 +1,4 @@
-#CXX=mpicxx -g -rdynamic -std=c++11
+CXX=mpicxx -g -rdynamic -std=c++11
 #uncomment the following if debugging needed
 CXX=mpicxx -g -std=c++11 -pedantic -Wall -Wextra -Wno-undef -Wno-comment -Wno-unused-parameter -Wno-long-long -Wdisabled-optimization -Wformat=2 -Winit-self -Wlogical-op -Wmissing-declarations -Wmissing-include-dirs -Wnoexcept -Wold-style-cast -Woverloaded-virtual -Wredundant-decls -Wshadow -Wsign-conversion -Wsign-promo -Wstrict-null-sentinel -Wstrict-overflow=5 -Wswitch-default -Wno-old-style-cast -Wno-redundant-decls
 

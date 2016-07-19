@@ -6,9 +6,11 @@
 class Drag {
     void operator=(const Drag&);
     Drag(const Drag&);
+    static double m_thickness;
+    static double m_tol;
 public:
     double m_t;
-    virtual bool isPresetPoint(double*) = 0; 
+    virtual bool isPresetPoint(SpringVertex*) = 0; 
 
     virtual void setVel(SpringVertex*) = 0;
 
@@ -16,6 +18,11 @@ public:
 
     void setTimeStepSize(double dt) {m_dt = dt;}
     double getTimeStepSize() {return m_dt;}
+    
+    static void setThickness(double t){m_thickness = t;}
+    static double getThickness() {return m_thickness;}
+    static void setTolerance(double t){m_tol = t;}
+    static double getTolerance() {return m_tol;}
 
     //prototype pattern
     //the drag will be created using 
@@ -39,6 +46,7 @@ public:
     static Drag* dragFactory(const Info &);
     virtual Drag* clone(const Info &) = 0;
 protected:
+    enum {FREE_POINT,ROTATE_POINT,STATIC_POINT};
     double m_dt;
     Drag(double t) : m_t(t) {}
     Drag(){}
@@ -50,7 +58,7 @@ public:
     double rad;
     double m_v[3];
     double m_a[3];
-    virtual bool isPresetPoint(double*);
+    virtual bool isPresetPoint(SpringVertex*);
     virtual void setVel(SpringVertex*);
     virtual void setAccel(SpringVertex*);
 
@@ -79,7 +87,7 @@ public:
 	DragPoint(double[],double,double[],double[]);
     };
     std::vector<DragPoint*> dragPoints;
-    bool isPresetPoint(double*);
+    bool isPresetPoint(SpringVertex*);
     void setVel(SpringVertex*);
     void setAccel(SpringVertex*);
     int getDragPointNumber(double []);
@@ -90,33 +98,56 @@ public:
     MultiplePointDrag(){}
 };
 
-class SpinDrag : public Drag {
+class FoldDrag : public Drag {
 public:
     double spinOrig[3];
     double spinDir[3];
     double angVel;
     double foldingBox[2][3];
     
-    bool isPresetPoint(double*);
+    bool isPresetPoint(SpringVertex*);
     void setVel(SpringVertex*);
     void setAccel(SpringVertex*);
-    std::string id() {return "SpinDrag";}
+    std::string id() {return "FoldDrag";}
     virtual Drag* clone(const Drag::Info&);
-    void spinToAxis(double c[], double dir[], double theta, double p[]);
-    SpinDrag() {}
+    FoldDrag() {}
 };
 
-class TuckDrag : public SpinDrag {
+class TuckDrag : public Drag {
+    double tuck_line[2][3];
+    double spinOrig[3];
+    double spinDir[3];
+    double angVel;
+    double constrain_box[2][3];
 public:
-    double radius; //radius of the surface
-    double band;   //tolerance
-    double load_v; //velocity of load node
-    void setLoadNodeVel();
-    bool isPresetPoint(double*);
+    bool isPresetPoint(SpringVertex*);
     std::string id() {return "TuckDrag";}
     Drag* clone(const Drag::Info&);
     void setVel(SpringVertex*);
+    void setAccel(SpringVertex*);
     TuckDrag(){}
 };
 
+class CloseUmbrellaDrag : public Drag {
+    int num_tuck_line;
+    double spinOrig[3];
+    double spinDir[3];
+    double angVel;
+public:
+    bool isPresetPoint(SpringVertex*);
+    std::string id() {return "CloseUmbrellaDrag";}
+    Drag* clone(const Drag::Info&);
+    void setVel(SpringVertex*);
+    void setAccel(SpringVertex*){}
+    CloseUmbrellaDrag() {}
+};
+
+class RelaxDrag : public Drag {
+public: 
+    bool isPresetPoint(SpringVertex* sv) {return false;}
+    std::string id() {return "RelaxDrag";}
+    Drag* clone (const Drag::Info&);
+    void setVel(SpringVertex* sv) {}
+    void setAccel(SpringVertex* sv) {}
+};
 #endif
