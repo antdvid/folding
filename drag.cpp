@@ -275,15 +275,15 @@ void FoldDrag::setVel(SpringVertex* sv) {
 	std::fill(sv->getVel(),sv->getVel()+3,0);
     }
     else 
-	return;
+	return;	
 }
 
 void FoldDrag::setAccel(SpringVertex* sv) {}
 
 Drag* FoldDrag::clone(const Drag::Info& info) {
     if (info.data().size() != 14) {
-        std::cout << "Spin drag should have "
-                  << "9 parameters, "
+        std::cout << "Fold drag should have "
+                  << "14 parameters, "
                   << "but " << info.data().size()
                   << " parameters are given"
                   << std::endl;

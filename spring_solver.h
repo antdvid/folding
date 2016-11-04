@@ -1,13 +1,13 @@
 #ifndef SPRING_SOLVER_H
 #define SPRING_SOLVER_H
 #include <vector>
-#include <FronTier.h>
 #include <algorithm>
 #include <string>
+#include "drag.h"
 
+#define SPRING_EPS 1e-10
 struct SpringVertex 
 {
-    POINT* m_p;
     double* x;
     double v[3];
     double f[3];
@@ -20,12 +20,10 @@ struct SpringVertex
     //set up before applying drag
     int point_type;
     
-    SpringVertex(POINT* p):m_p(p),x(Coords(p)),
-			   is_registered(false){}
+    SpringVertex():is_registered(false){}
     ~SpringVertex(){}
-    double* getCoords(){return Coords(m_p);}
-    POINT* getPoint(){return m_p;}
     double* getVel() {return v;}
+    double* getCoords() {return x;}
     double* getExternalAccel() {return f_ext;}
     void addNeighbor(size_t,double);
     bool isRegistered(){return is_registered;}
@@ -33,44 +31,75 @@ struct SpringVertex
     void unsetRegistered(){is_registered = false;}
 };
 
+class Drag;
 class SpringSolver 
 {
-    Front* m_front;
-    double m_dt;
+private:
+    double m_dt;  //time intrement
+    Drag* m_drag; //control the prescribed points
     void checkVertexNeighbors();
-    int findPoints(POINT*);
-    void rk4SpringSolver(double,int);
-    void computeAccel(SpringVertex*);
-    struct SpringParameter {
-	double k;
-	double lambda;
-	double m;
-	SpringParameter():k(1000),lambda(0.01),m(0.01){}
-    } springParameter;
 public:
+    struct SpringParameter {
+	double k = 0;
+	double lambda = 0;
+	double m = 0;
+	SpringParameter(){}
+	SpringParameter(double stf, double fri, double mas) :
+		k(stf), lambda(fri), m(mas) {}
+	//copy constructor
+	SpringParameter(SpringParameter& params) {
+	    k = params.k;
+	    lambda = params.lambda;
+	    m = params.m;
+	}
+    };
+    enum ODE_SCHEME {EXPLICIT, IMPLICIT};
     void setParameters(double,double,double);
+    static SpringSolver* createSpringSolver(ODE_SCHEME);
+    void resetVelocity();
     void printAdjacencyList(std::string);
     void printPointList(std::string);
-    double getTimeStepSize();
-    virtual void doSolve(double);
-    SpringSolver(){}
-    SpringSolver(Front* front):m_front(front){}
-    ~SpringSolver(){}
-    //the following functions need to be 
-    //implemented in the derived class
-    
-    //implement a function to create
-    //a vector of SpringVertex and its adjacency
-    virtual void assemblePoints() = 0;
-    //implement a function to find preset points
-    //make its is_registered to be true
-    virtual void presetPoints() = 0;
+    virtual double getTimeStepSize() {return m_dt;}
+    virtual void setTimeStepSize(double dt) {m_dt = dt;}
+    void setParameters(SpringParameter&); 
+    void setDrag(Drag*);
+    virtual void doSolve(double) = 0;
+    virtual ~SpringSolver(){}
 
-    //this function can be overwritten if 
-    //you want to prescribe the velocity of some points
-    virtual void setPresetVelocity(SpringVertex* sv) {};
+    //this function retrieves spring vertex 
+    //you can fill in the spring vertex from outside
+    std::vector<SpringVertex*>& getSpringMesh() {return pts;}
+
+    //function for computing acceleration
+    void computeAccel(SpringVertex*);
+    void computeJacobian();
+
 protected:
     std::vector<SpringVertex*> pts;
+    void setPresetVelocity(SpringVertex*);
+    SpringParameter springParameter;
+    //singleton pattern
+    //using virtual constructor: createSpringSolver()
+    SpringSolver(){}
 };
 
+//solve spring-mass ode system using 
+//4th-order explicit Runge-Kutta method
+class EX_SPRING_SOLVER: public SpringSolver {
+public:
+    void doSolve(double);
+private:
+    double getTimeStepSize();
+    std::vector<std::vector<double> > x_old;
+    std::vector<std::vector<double> > x_new;
+    std::vector<std::vector<double> > v_old;
+    std::vector<std::vector<double> > v_new;
+};
+
+//solve spring-mass ode system using
+//2nd-order implicit Admas-Moulton method
+class IM_SPRING_SOLVER: public SpringSolver {
+public:
+   void doSolve(double);
+};
 #endif

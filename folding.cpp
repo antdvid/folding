@@ -1,5 +1,5 @@
 #include "folding.h"
-#include "ft_spring_solver.h"
+#include "spring_solver.h"
 #include <fstream>
 #include <sstream>
 
@@ -26,25 +26,30 @@ void Folder::addDragsFromFile(std::string fname) {
     }
 }
 
+void Folder::setSpringParameters(double k, double lambda, double m) {
+    spring_params.k = k;
+    spring_params.lambda = lambda;
+    spring_params.m = m;
+}
+
 void Folder3d::doFolding() {
-    FT_SpringSolver* sp_solver = new FT_SpringSolver(m_intfc);
+    SpringSolver* sp_solver = SpringSolver::createSpringSolver(
+						getOdeScheme()); 
     CollisionSolver* cd_solver = new CollisionSolver3d();
     
-    double k = 1000;
-    double lambda = 5;
-    double m = 0.01;
     //configure collision solver
     cd_solver->assembleFromInterface(m_intfc,getFrameStepSize());
-    cd_solver->setSpringConstant(k);
-    cd_solver->setFrictionConstant(0.0);
-    cd_solver->setPointMass(m);
+    cd_solver->setSpringConstant(getSpringParams().k);
+    cd_solver->setFrictionConstant(getSpringParams().lambda);
+    cd_solver->setPointMass(getSpringParams().m);
     cd_solver->setFabricThickness(getThickness());
   
     //configure spring solver
-    sp_solver->assemblePoints();
-    sp_solver->setParameters(k,lambda,m);
+    FT_Intfc2SpringMesh(m_intfc, sp_solver->getSpringMesh());
+    if (getSpringParams().k == 0 || getSpringParams().m == 0)
+	throw std::invalid_argument("tensile stiffness and mass cannot zero");
+    sp_solver->setParameters(getSpringParams());
 
-    /**************************/
     Drag::setTolerance(m_intfc->table->rect_grid.h[0]*0.5);
     Drag::setThickness(0.001);
 
@@ -62,12 +67,13 @@ void Folder3d::doFolding() {
 
 void Folder3d::doFolding(
      Drag* drag, 
-     FT_SpringSolver* sp_solver,
+     SpringSolver* sp_solver,
      CollisionSolver* cd_solver) 
 {
     double min_dt = sp_solver->getTimeStepSize();
     double max_dt = std::max(min_dt,getFrameStepSize());
     
+    sp_solver->setTimeStepSize(max_dt);
     sp_solver->setDrag(drag);
 
     setCollisionFreePoints3d(m_intfc,drag);
@@ -89,7 +95,7 @@ void Folder3d::doFolding(
 
     	sp_solver->doSolve(dt);
 
-	//cd_solver->resolveCollision();
+	cd_solver->resolveCollision();
 
 	t = t + dt;
 	if (movie->isMovieTime(t))
@@ -226,4 +232,3 @@ void Folder3d::straightenStrings() {
         }
    }
 }
-

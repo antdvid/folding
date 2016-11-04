@@ -2,6 +2,9 @@
 #define DRAG_H
 #include <algorithm>
 #include "spring_solver.h"
+#include <FronTier.h>
+
+class SpringVertex;
 
 class Drag {
     void operator=(const Drag&);

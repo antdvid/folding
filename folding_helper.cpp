@@ -1,29 +1,49 @@
-#include "ft_spring_solver.h"
+#include <FronTier.h>
+#include "spring_solver.h"
 #include <unordered_map>
-#include <iostream>
+#include "../iFluid/ifluid_state.h"
+#include "folding.h"
 
+//helper functions to convert FronTier data structures
+//to spring mesh
 static void unsortIntfc(INTERFACE*);
 static void unsortSurface(SURFACE*);
 static void unsortCurve(CURVE*);
+
+static void assemblePointsFromSurf(SURFACE*, std::vector<SpringVertex*>&,
+				std::unordered_map<POINT*, size_t>&);
+static void assemblePointsFromCurve(CURVE*, std::vector<SpringVertex*>& pts,
+				std::unordered_map<POINT*, size_t>&);
+static void assemblePointsFromNode(NODE*, std::vector<SpringVertex*>& pts,
+				std::unordered_map<POINT*, size_t>&);
+
+static void setConnection(POINT* p1, POINT* p2, double length0, std::vector<SpringVertex*>& pts, std::unordered_map<POINT*, size_t>&);
+
+static  SpringVertex* FT_Point2SpringVertex(POINT*);
+
 static bool isElasticCurve(CURVE* c) {
     return (hsbdry_type(c) == STRING_HSBDRY ||
             hsbdry_type(c) == MONO_COMP_HSBDRY ||
             hsbdry_type(c) == GORE_HSBDRY);
 }
 
-FT_SpringVertex::FT_SpringVertex(POINT* p) : SpringVertex(p){
+static SpringVertex* FT_Point2SpringVertex(POINT* p) {
+    SpringVertex* spv = new SpringVertex();
     STATE* state = (STATE*)left_state(p);
-    std::copy(state->vel,state->vel+3,this->v);
+    std::copy(state->vel,state->vel+3,spv->v);
     for (int i = 0; i < 3; ++i)
-	f_ext[i] = state->fluid_accel[i] +
-		   state->other_accel[i];
+        spv->f_ext[i] = state->fluid_accel[i] +
+                   state->other_accel[i];
+    spv->x = Coords(p);
+    return spv;
 }
 
-void FT_SpringSolver::assemblePoints() {
+extern void FT_Intfc2SpringMesh(INTERFACE* intfc, std::vector<SpringVertex*>&pts) {
     //assemble tris list from input intfc
     //this function should be called before
     //spring interior dynamics computed
 
+    std::unordered_map<POINT*, size_t> ht;
     //clear hash table and point list
     ht.clear();
     pts.clear();
@@ -33,37 +53,39 @@ void FT_SpringSolver::assemblePoints() {
     SURFACE** s;
     intfc_surface_loop(intfc,s) {
         if (wave_type(*s) == ELASTIC_BOUNDARY)
-            assemblePointsFromSurf(*s);
+            assemblePointsFromSurf(*s, pts, ht);
     }
     printf("#%lu num of points in surf\n",pts.size());
 
     //clone points from curve
     CURVE** c;
     intfc_curve_loop(intfc,c) {
-	//do not assemble strings
-	if (hsbdry_type(*c) == STRING_HSBDRY) continue;
-	if (isElasticCurve(*c))
-            assemblePointsFromCurve(*c);
+        //do not assemble strings
+        if (hsbdry_type(*c) == STRING_HSBDRY) continue;
+        if (isElasticCurve(*c))
+            assemblePointsFromCurve(*c, pts, ht);
     }
     printf("#%lu num of points in curve\n",pts.size());
 
     //clone points from node
     NODE** n;
     intfc_node_loop(intfc,n) {
-	assemblePointsFromNode(*n);
+        assemblePointsFromNode(*n, pts, ht);
     }
     printf("#%lu num of points in nodes\n",pts.size());
 }
 
-void FT_SpringSolver::assemblePointsFromSurf(SURFACE* s) {
-	TRI* tris[20];
-	TRI* tri;
+static void assemblePointsFromSurf(SURFACE* s, 
+			std::vector<SpringVertex*>& pts,
+			std::unordered_map<POINT*, size_t>& ht) {
+        TRI* tris[20];
+        TRI* tri;
         surf_tri_loop(s,tri)
         for (int i = 0; i < 3; ++i)
         {
             POINT* p = Point_of_tri(tri)[i];
             if(Boundary_point(p) || sorted(p)) continue;
-	    sorted(p) = YES;
+            sorted(p) = YES;
 
             int nt = 0;
             PointAndFirstRingTris(p,Hyper_surf_element(tri),
@@ -73,12 +95,14 @@ void FT_SpringSolver::assemblePointsFromSurf(SURFACE* s) {
             if (Point_of_tri(tris[j])[l] == p)
             {
                 POINT* p_nb = Point_of_tri(tris[j])[(l+1)%3];
-		setConnection(p,p_nb,tris[j]->side_length0[l]);	
+                setConnection(p,p_nb,tris[j]->side_length0[l], pts, ht);
             }
         }
 }
 
-void FT_SpringSolver::assemblePointsFromCurve(CURVE *curve) {
+static void assemblePointsFromCurve(CURVE *curve, 
+				std::vector<SpringVertex*>& pts,
+				std::unordered_map<POINT*, size_t>& ht) {
  	//assemble from curve
 	for (BOND* b = curve->first; b != curve->last; b = b->next)
         for (int i = 0; i < 2; ++i)
@@ -86,7 +110,7 @@ void FT_SpringSolver::assemblePointsFromCurve(CURVE *curve) {
             POINT* p = b->end;
             POINT* p_nb = (i == 0) ? b->start : b->next->end;
             double dist = (i == 0) ? b->length0 : b->next->length0;
-	    setConnection(p,p_nb,dist);
+	    setConnection(p,p_nb,dist, pts, ht);
         }
 
 	//connect with btris 
@@ -106,7 +130,7 @@ void FT_SpringSolver::assemblePointsFromCurve(CURVE *curve) {
                             if (is_side_bdry(tris[j],side))
                                 continue;
                             POINT* p_nb = Point_of_tri(tris[j])[(side+1)%3];
-			    setConnection(p,p_nb,tris[j]->side_length0[side]);
+			    setConnection(p,p_nb,tris[j]->side_length0[side], pts, ht);
                         }
                     }
                 }
@@ -114,89 +138,46 @@ void FT_SpringSolver::assemblePointsFromCurve(CURVE *curve) {
 	}
 }
 
-void FT_SpringSolver::assemblePointsFromNode(NODE* n) {
+static void assemblePointsFromNode(NODE* n, 
+			std::vector<SpringVertex*>& pts,
+			std::unordered_map<POINT*, size_t>& ht) {
     for (CURVE** c = n->in_curves; c && *c; ++c)
     {
-	if (!isElasticCurve(*c)) continue;
-	//do not fold strings
-	if (hsbdry_type(*c) == STRING_HSBDRY) continue;
-	BOND* b = (*c)->last;
-	POINT* p_nb = b->start;
-	setConnection(n->posn,p_nb,b->length0);	
+        if (!isElasticCurve(*c)) continue;
+        //do not fold strings
+        if (hsbdry_type(*c) == STRING_HSBDRY) continue;
+        BOND* b = (*c)->last;
+        POINT* p_nb = b->start;
+        setConnection(n->posn,p_nb,b->length0, pts, ht);
     }
 
     for (CURVE** c = n->out_curves; c && *c; ++c)
     {
-	if (!isElasticCurve(*c)) continue;
-	//do not fold strings
-	if (hsbdry_type(*c) == STRING_HSBDRY) continue;
-	BOND* b = (*c)->first;
-	POINT* p_nb = b->end;
-	setConnection(n->posn,p_nb,b->length0);	
+        if (!isElasticCurve(*c)) continue;
+        //do not fold strings
+        if (hsbdry_type(*c) == STRING_HSBDRY) continue;
+        BOND* b = (*c)->first;
+        POINT* p_nb = b->end;
+        setConnection(n->posn,p_nb,b->length0, pts, ht);
     }
 }
 
-void FT_SpringSolver::updateVelocityToState() {
-    for (size_t i = 0; i < pts.size(); ++i) {
-	STATE* st = (STATE*)left_state(pts[i]->getPoint());
-	std::copy(pts[i]->v,pts[i]->v+3,st->vel);
-    }
-}
-
-void FT_SpringSolver::updateVelocityFromState() {
-    for (size_t i = 0; i < pts.size(); ++i) {
-        STATE* st = (STATE*)left_state(pts[i]->getPoint());
-        std::copy(st->vel,st->vel+3,pts[i]->v);
-    }
-}
-
-void FT_SpringSolver::setConnection(POINT* p1, POINT* p2, double length0) {
+static void setConnection(POINT* p1, POINT* p2, double length0, 
+			std::vector<SpringVertex*>& pts,
+			std::unordered_map<POINT*, size_t>& ht) {
     POINT* points[2] = {p1,p2};
     for (int i = 0; i < 2; ++i) {
-	if (ht.find(points[i]) == ht.end()) {
-	    //not inserted yet
-	    ht[points[i]] = pts.size();
-	    pts.push_back(new FT_SpringVertex(points[i]));
-	}
+        if (ht.find(points[i]) == ht.end()) {
+            //not inserted yet
+            ht[points[i]] = pts.size();
+            pts.push_back(FT_Point2SpringVertex(points[i]));
+        }
     }
     if (length0 < 0)
-	length0 = separation(p1,p2,3);
+        length0 = separation(p1,p2,3);
     size_t ind = ht[p1];
     size_t ind_nb = ht[p2];
     pts[ind]->addNeighbor(ind_nb,length0);
-}
-
-void FT_SpringSolver::presetPoints() {
-    drag->setTimeStepSize(this->getTimeStepSize());	
-    for (size_t i = 0; i < pts.size(); ++i) 
-    {
-	if (drag->isPresetPoint(pts[i])) {
-	    printf("Registered point = %f %f %f\n",
-		pts[i]->getCoords()[0],pts[i]->getCoords()[1],
-		pts[i]->getCoords()[2]);
-	    pts[i]->setRegistered();
-	}
-	else
-	    pts[i]->unsetRegistered();
-
-	drag->setVel(pts[i]);
-	drag->setAccel(pts[i]);	
-    }	
-}
-
-void FT_SpringSolver::setPresetVelocity(SpringVertex* sv) {
-    drag->setTimeStepSize(this->getTimeStepSize());
-    drag->setVel(sv);
-}
-
-void FT_SpringSolver::setDrag(Drag* dg) {
-    drag = dg;
-    presetPoints();
-}
-
-void FT_SpringSolver::resetVelocity() {
-    for (size_t i = 0; i < pts.size(); ++i) 
-	std::fill(pts[i]->v,pts[i]->v+3,0);
 }
 
 static void unsortIntfc(INTERFACE* intfc) {
@@ -225,4 +206,4 @@ static void unsortCurve(CURVE* c) {
         sorted(b->end) = NO;
     }
 }
-
+ 

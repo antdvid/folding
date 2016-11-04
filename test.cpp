@@ -29,16 +29,33 @@ int main(int argc, char** argv)
 
         level_func_pack.pos_component = 2;
         FT_InitIntfc(&front,&level_func_pack);
-	
+		
 	SURFACE* surf;
 	initTestModule(&front,surf);
 
+	//Draw initial shape
+	FT_Draw(&front);
+	FT_AddTimeStepToCounter(&front);
+
+	//initialize folding solver
 	Folder* folder = new Folder3d(front.interf,surf);
 	
-	folder->addDragsFromFile("./fold_plan");
+	//adding folding plan from file
+	FILE* infile = fopen(InName(&front), "r");
+	char mesg[256];
+	CursorAfterString(infile,"Enter file path of folding plan:");
+        fscanf(infile,"%s",mesg);
+	folder->addDragsFromFile(mesg);
 	folder->setupMovie("fold_movie",1);
 
+	//set numerical scheme for ode EXPLICIT or IMPLICIT
+        folder->setOdeScheme(SpringSolver::IMPLICIT);
+	//set spring parameters
+	folder->setSpringParameters(1000, 0.1, 0.01);
+	//begin to fold
 	folder->doFolding();
+
+	//FronTier draw results
 	FT_Draw(&front);
 	FT_AddTimeStepToCounter(&front);
 	clean_up(0);
