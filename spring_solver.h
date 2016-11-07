@@ -8,8 +8,8 @@
 #define SPRING_EPS 1e-10
 struct SpringVertex 
 {
-    double* x;
-    double v[3];
+    double* x; //pointing to Point->x
+    double* v; //pointing to left_state(Point)->vel
     double f[3];
     double f_ext[3];
     std::vector<size_t> index_nb;

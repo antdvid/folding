@@ -30,11 +30,11 @@ static bool isElasticCurve(CURVE* c) {
 static SpringVertex* FT_Point2SpringVertex(POINT* p) {
     SpringVertex* spv = new SpringVertex();
     STATE* state = (STATE*)left_state(p);
-    std::copy(state->vel,state->vel+3,spv->v);
     for (int i = 0; i < 3; ++i)
         spv->f_ext[i] = state->fluid_accel[i] +
                    state->other_accel[i];
     spv->x = Coords(p);
+    spv->v = state->vel;
     return spv;
 }
 

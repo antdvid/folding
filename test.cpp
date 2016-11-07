@@ -46,13 +46,17 @@ int main(int argc, char** argv)
 	CursorAfterString(infile,"Enter file path of folding plan:");
         fscanf(infile,"%s",mesg);
 	folder->addDragsFromFile(mesg);
-	folder->setupMovie("fold_movie",1);
+
+	//set folding movie
+	folder->setupMovie("fold_movie", 0.5);
 
 	//set numerical scheme for ode EXPLICIT or IMPLICIT
         folder->setOdeScheme(SpringSolver::IMPLICIT);
-	//set spring parameters
-	folder->setSpringParameters(1000, 0.1, 0.01);
-	//begin to fold
+
+	//set spring parameters: k, lambda, m
+	folder->setSpringParameters(800, 5, 0.01);
+
+	//start to fold
 	folder->doFolding();
 
 	//FronTier draw results
