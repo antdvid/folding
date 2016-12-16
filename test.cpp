@@ -50,14 +50,14 @@ int main(int argc, char** argv)
 	folder->addDragsFromFile(mesg);
 
 	//set folding movie
-	folder->setupMovie("fold_movie", 0.05);
+	folder->setupMovie("fold_movie", OutName(&front), 0.05);
 
 	//set numerical scheme for ode EXPLICIT or IMPLICIT
         folder->setOdeScheme(SpringSolver::IMPLICIT);
         //folder->setOdeScheme(SpringSolver::EXPLICIT);
 
 	//set spring parameters: k, lambda, m
-	folder->setSpringParameters(800, 5, 0.01);
+	folder->setSpringParameters(800, 2, 0.001);
 
 	//start to fold
 	folder->doFolding();

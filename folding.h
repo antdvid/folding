@@ -14,7 +14,7 @@ public:
     void addDragsFromFile(std::string);
     void setThickness(double h){this->m_thickness = h;}
     void setFrameStepSize(double dt) {max_dt = dt;}
-    virtual void setupMovie(std::string,double) = 0;
+    virtual void setupMovie(std::string, std::string, double) = 0;
     void setOdeScheme(SpringSolver::ODE_SCHEME scheme) {ode_scheme = scheme;}
     void setSpringParameters(double, double, double);
     SpringSolver::SpringParameter& getSpringParams(){return spring_params;}
@@ -38,7 +38,7 @@ public:
     ~Folder3d();
     void doFolding();
     Folder3d(){}
-    void setupMovie(std::string,double);
+    void setupMovie(std::string, std::string, double);
 private:
     void doFolding(Drag*,SpringSolver*,CollisionSolver*);
     void straightenStrings();
@@ -49,7 +49,8 @@ private:
 struct Movie {
     double mv_dt;
     int mv_count;
-    std::string mv_dir;
+    std::string mv_gv_dir;
+    std::string mv_vtk_dir; 
     INTERFACE* mv_intfc;
     bool doMakeMovie;
     void recordMovieFrame();

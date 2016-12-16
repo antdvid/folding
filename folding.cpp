@@ -46,7 +46,6 @@ void Folder3d::doFolding() {
   
     //configure spring solver
     FT_Intfc2SpringMesh(m_intfc, sp_solver->getSpringMesh());
-    
     if (getSpringParams().k == 0 || getSpringParams().m == 0)
 	throw std::invalid_argument("tensile stiffness and mass cannot zero");
     sp_solver->setParameters(getSpringParams());
@@ -105,20 +104,37 @@ void Folder3d::doFolding(
     }
 }
 
-void Folder3d::setupMovie(std::string dname,
+void Folder3d::setupMovie(std::string dname, std::string oname, 
 			double dt) {
     movie = new Movie();
     movie->mv_dt = dt;
-    movie->mv_dir = dname;
+    std::string pathgv = oname + '/' + dname + "/gview";
+    std::string pathvtk = oname + '/' + dname + "/vtk"; 
+    movie->mv_gv_dir = pathgv;
+    movie->mv_vtk_dir = pathvtk; 
     movie->doMakeMovie = true;
     movie->mv_intfc = this->m_intfc;
-    std::string sys_cmd = "mkdir -p " + dname;
+    std::string sys_cmd = "mkdir -p " + pathgv;
+    system(sys_cmd.c_str());
+    sys_cmd = "mkdir -p " + pathvtk; 
     system(sys_cmd.c_str());
 }
 
 void Movie::recordMovieFrame() {
-    std::string fname = mv_dir + "/intfc-" + std::to_string(mv_count++);
+    std::string fname = mv_gv_dir + "/intfc-" + std::to_string(mv_count);
     gview_plot_interface(fname.c_str(),mv_intfc);
+
+    // keep marking number to have fixed number of digits
+    std::string count; 
+    std::stringstream ss;
+    ss << std::setw(6) << std::setfill('0') << mv_count;
+    count = ss.str();
+    fname = mv_vtk_dir + "/vtk-" + count;
+    std::string sys_cmd = "mkdir -p " + fname; 
+    system(sys_cmd.c_str());
+    vtk_interface_plot(fname.c_str(),mv_intfc, YES,
+                                        mv_dt * mv_count ,mv_count);
+    mv_count++; 
 }
 
 bool Movie::isMovieTime(double t) {

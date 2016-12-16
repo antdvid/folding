@@ -20,12 +20,34 @@ void BendingForce::computeExternalForce()
                 for (int i = 0; i < 3; ++i)
                 {
                     POINT *p1 = Point_of_tri(tri)[i];
+		    POINT *p2 = Point_of_tri(tri)[(i+1)%3];
+		    POINT *p3 = Point_of_tri(tri)[(i+2)%3];
+
+		    sorted(p1) = NO;
+		    if (Boundary_point(p2) && Boundary_point(p3)) {
+			continue;
+		    }
+
                     TRI* n_tri = Tri_on_side(tri, (i+1)%3);
-                    if (n_tri != NULL)
-                        calculateBendingForce3d2006(p1, tri, n_tri);
-                        //calculateBendingForce3d2003(p1, tri, n_tri);
+                    calculateBendingForce3d2003(p1, tri, n_tri);
+                    //calculateBendingForce3d2006(p1, tri, n_tri);
                 }
             }
+	    surf_tri_loop(*surf, tri)
+	    {
+		for (int i = 0; i < 3; ++i)
+		{
+		    POINT* p = Point_of_tri(tri)[i];
+		    if (sorted(p)) continue;
+		    sorted(p) = YES;
+		    TRI** tris;
+		    int nt = I_FirstRingTrisAroundPoint(p, tri, &tris);
+		    if (nt == 0)
+			clean_up(ERROR);
+		    for (int j = 0; j < 3; ++j)
+		        p->force[j] /= nt;
+		}
+	    }
         }
 }       /* setBendingForce3d */
 
@@ -75,7 +97,7 @@ void BendingForce::calculateBendingForce3d2003(
             u3[i] = Dot3d(x14, E) * N1[i] + Dot3d(x24, E) * N2[i];
             u4[i] = -Dot3d(x13, E) * N1[i] - Dot3d(x23, E) * N2[i];
         }
-        double bend_stiff = 0.00001;
+        double bend_stiff = 0.001;
         double coeff = bend_stiff * sqr(E_mag) / (N1_mag + N2_mag);
         if (Dot3d(n1, n2) > 1.0 + 1.0e-10)
         {
@@ -174,7 +196,7 @@ void BendingForce::calculateBendingForce3d2006(
         h1 = sqrt(Dot3d(x13, x13) - h1 * h1);
         h2 = fabs(Dot3d(x23, E) / E_mag);
         h2 = sqrt(Dot3d(x23, x23) - h2 * h2);
-        double bend_stiff = 0.001;
+        double bend_stiff = 1.0;
         double lambda = 2.0*(h1 + h2)*E_mag*bend_stiff / (3.0*h1*h2*h1*h2);
         for (int i = 0; i < 3; ++i)
         {
@@ -183,6 +205,25 @@ void BendingForce::calculateBendingForce3d2006(
             p3->force[i] += -lambda * a3 * R[i] * 0.5;
             p4->force[i] += -lambda * a4 * R[i] * 0.5;
         }
+	if (fabs(Coords(p1)[0] -0.75) < 0.1)
+	{
+	    double R_mag = Mag3d(R);
+	    int count = 0;
+	    if (Coords(p1)[2] > 0.8) count++;
+	    if (Coords(p2)[2] > 0.8) count++;
+	    if (Coords(p3)[2] > 0.8) count++;
+	    if (Coords(p4)[2] > 0.8) count++;
+	    if (R_mag > 0 && count == 3)
+	    {
+	    printf("R = [%f %f %f], R_mag = %e, lambda = %e\n", R[0],R[1],R[2],R_mag,lambda);
+	    printf("nor R = [%f %f %f]\n", R[0]/R_mag, R[1]/R_mag, R[2]/R_mag);
+	    printf("h1 = %f, h2 = %f, E_mag = %f\n", h1, h2, E_mag);
+	    printf("p1 = [%f %f %f]\n", Coords(p1)[0], Coords(p1)[1], Coords(p1)[2]); 
+	    printf("p2 = [%f %f %f]\n", Coords(p2)[0], Coords(p2)[1], Coords(p2)[2]); 
+	    printf("p3 = [%f %f %f]\n", Coords(p3)[0], Coords(p3)[1], Coords(p3)[2]); 
+	    printf("p4 = [%f %f %f]\n", Coords(p4)[0], Coords(p4)[1], Coords(p4)[2]); 
+	    }
+	}
         if (0) //Mag3d(p1->force) == 0)
         {
         printf("f1 = [%f %f %f]\n", p1->force[0], p1->force[1], p1->force[2]);
