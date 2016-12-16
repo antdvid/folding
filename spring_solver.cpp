@@ -79,13 +79,23 @@ void SpringSolver::computeAccel(SpringVertex* sv) {
         if (sv->isRegistered())
         {
             setPresetVelocity(sv);
-            std::copy(sv->f_ext,sv->f_ext+3,sv->f);
+            std::copy(sv->ext_accel,sv->ext_accel+3,sv->accel);
             return;
         }
 
-        for (int i = 0; i < dim; ++i)
-            sv->f[i] = 0.0; 
+	//reset acceleration
+        for (size_t i = 0; i < dim; ++i)
+            sv->accel[i] = 0.0; 
 
+ 	//add external acceleration: bending
+	for (size_t j = 0; j < ext_forces.size(); ++j)
+	{
+	    double* ext_f = ext_forces[j]->getExternalForce(sv);   
+	    for (size_t i = 0; i < dim; ++i)
+                sv->accel[i] += ext_f[i]/m; 
+	}
+
+	//add internal acceleration: tensile stiffness
         for (size_t i = 0; i < sv->index_nb.size(); ++i)
         {
             double len = 0.0;
@@ -103,15 +113,15 @@ void SpringSolver::computeAccel(SpringVertex* sv) {
                     vec[j] /= len;
                 else
                     vec[j] = 0.0;
-                sv->f[j] += k*((len - sv->length0[i])*vec[j])/m;
-                sv->f[j] += lambda*v_rel[j]/m;
+                sv->accel[j] += k*((len - sv->length0[i])*vec[j])/m;
+                sv->accel[j] += lambda*v_rel[j]/m;
             }
             if (sv->length0[i] < 0) exit(-1);
         }
 
         for (int j = 0; j < dim; ++j)
         {
-            sv->f[j] += (sv->getExternalAccel())[j];
+            sv->accel[j] += (sv->getExternalAccel())[j];
         }
 }
 

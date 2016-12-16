@@ -17,6 +17,24 @@ static double distance_between(const double p1[],
     }
     return sqrt(dist);
 }
+
+static void Cross3d(const double B[], const double C[], double ans[])
+{
+    (ans)[0] = ((B)[1])*((C)[2]) - ((B)[2])*((C)[1]);       
+    (ans)[1] = ((B)[2])*((C)[0]) - ((B)[0])*((C)[2]);      
+    (ans)[2] = ((B)[0])*((C)[1]) - ((B)[1])*((C)[0]);     
+}
+
+
+static double Dot3d(double* v1, double* v2) 
+{ 
+    return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2];
+}
+
+static double Mag3d(double* v) 
+{ 
+    return sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
+}
 //Drag
 Drag* Drag::dragFactory(const Drag::Info& info) {
     for (size_t i = 0; i < prototypes.size(); ++i) {
@@ -313,7 +331,8 @@ static bool isPointOnLine(double p[],  double p1[],
 	v2[i] = p[i]  - p2[i];
     }
     if (pointToLineDistance(p,p1,v) < tol && 
-	Dot3d(v1,v2) < 0)  {
+	Dot3d(v1,v2) < 0)  
+    {
 	return true;		
     }     
     else
@@ -391,13 +410,13 @@ void TuckDrag::setAccel(SpringVertex* sv) {
 
 //closeUmbrellaDrag
 bool CloseUmbrellaDrag::isPresetPoint(SpringVertex* sv) {
-    double d_theta = 2*PI/num_tuck_line;
+    double d_theta = 2*M_PI/num_tuck_line;
     double theta = 0;
     double *p = sv->getCoords();
-    double len = distance_between_positions(p,spinOrig,3);
+    double len = distance_between(p,spinOrig,3);
     if (!isPointInBall(p,spinOrig,EPS)) {
         theta = (p[1] > spinOrig[1]) ? acos((p[0]-spinOrig[0])/len) :
-				       acos((p[0]-spinOrig[0])/len) + PI;
+				       acos((p[0]-spinOrig[0])/len) + M_PI;
 	double theta_l = floor(theta/d_theta)*d_theta;
 	double theta_r = ceil(theta/d_theta)*d_theta;
 	double dist = std::min(len*fabs(sin(theta-theta_l)),len*fabs(sin(theta-theta_r)));
@@ -465,3 +484,41 @@ Drag* RelaxDrag::clone(const Drag::Info& info) {
     rd->m_t = *it;
     return rd;
 }
+
+//GravityBoxDrag
+// Point Drag
+Drag* GravityBoxDrag::clone(const Drag::Info& info) {
+    if (info.data().size() != 10) {
+        std::cout << "GragBoxdrag should have "
+                  << "10 parameters, "
+                  << "but " << info.data().size()
+                  << " parameters are given"
+                  << std::endl;
+        return NULL;
+    }
+    else {
+        const std::vector<double>& v = info.data();
+        const double *it = &(v.front());
+	GravityBoxDrag* gbd = new GravityBoxDrag();
+	std::copy(it, it+3, gbd->L);
+	std::copy(it+3, it+6, gbd->U);
+	std::copy(it+6, it+9, gbd->g);
+	gbd->m_t = *(it+9);
+        return gbd;
+    }
+}
+
+bool GravityBoxDrag::isPresetPoint(SpringVertex* sv) {
+    double *p = sv->getCoords();
+    for (int i = 0; i < 3; ++i)
+	if (p[i] < L[i] || p[i] > U[i])
+	   return false;
+    return true;
+}
+
+void GravityBoxDrag::setAccel(SpringVertex* sv) {
+    double *a = sv->getExternalAccel();
+    if (!sv->isRegistered())
+        std::copy(g,g+3,a);
+}
+

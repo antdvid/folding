@@ -54,6 +54,9 @@ void IM_SPRING_SOLVER::doSolve(double t) {
     realtype tret;
     long nst;
     //realtype umax = N_VMaxNorm(u);
+
+    for (size_t i = 0; i < ext_forces.size(); ++i)	
+	ext_forces[i]->computeExternalForce();
     //solve ode
     flag = CVode(cvode_mem, t, u, &tret, CV_NORMAL);
 
@@ -110,9 +113,9 @@ static int f(realtype t, N_Vector u, N_Vector udot, void* user_data) {
 	dudata[i*6+1] = pts[i]->v[1];
 	dudata[i*6+2] = pts[i]->v[2];
 	//dv = f
-	dudata[i*6+3] = pts[i]->f[0];
-	dudata[i*6+4] = pts[i]->f[1];
-	dudata[i*6+5] = pts[i]->f[2];
+	dudata[i*6+3] = pts[i]->accel[0];
+	dudata[i*6+4] = pts[i]->accel[1];
+	dudata[i*6+5] = pts[i]->accel[2];
     }
     return 0;
 }

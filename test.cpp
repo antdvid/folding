@@ -8,6 +8,8 @@
 static void initTestModule(Front*,SURFACE*&);
 static void initAirbag(Front*,FILE*,SURFACE*&);
 static void initFabric(Front*,FILE*,SURFACE*&);
+void initFabricCircle(Front* front, FILE* infile, SURFACE* &surf);
+void initFabricRectangle(Front* front, FILE* infile, SURFACE* &surf);
 //static void myOptimizeSurf(Front *);
 
 int main(int argc, char** argv)
@@ -48,10 +50,11 @@ int main(int argc, char** argv)
 	folder->addDragsFromFile(mesg);
 
 	//set folding movie
-	folder->setupMovie("fold_movie", 0.5);
+	folder->setupMovie("fold_movie", 0.05);
 
 	//set numerical scheme for ode EXPLICIT or IMPLICIT
         folder->setOdeScheme(SpringSolver::IMPLICIT);
+        //folder->setOdeScheme(SpringSolver::EXPLICIT);
 
 	//set spring parameters: k, lambda, m
 	folder->setSpringParameters(800, 5, 0.01);
@@ -101,23 +104,43 @@ void initAirbag(Front* front, FILE* infile, SURFACE* &surf) {
 }
 
 void initFabric(Front* front, FILE* infile, SURFACE* &surf) {
- 	static PLANE_PARAMS plane_params;
-	static LEVEL_FUNC_PACK level_func_pack;
+	char mesg[256];
+	std::string shape = "Circle";
+	if (CursorAfterStringOpt(infile,"fabric shape:"))
+	{
+            fscanf(infile,"%s",mesg);
+            shape = std::string (mesg);
+	}
 
-	CursorAfterString(infile,"Enter the height of the plane:");
+	if( "Circle" == shape)
+	    initFabricCircle(front, infile, surf);
+	else if ("Rectangle" == shape)
+	    initFabricRectangle(front, infile, surf);
+	else
+	{
+	    std::cout << "Unknown shape " << shape << std::endl;
+	    clean_up(ERROR); 
+	}
+}
+
+void initFabricCircle(Front* front, FILE* infile, SURFACE* &surf)
+{
+	static PLANE_PARAMS plane_params;
+        static LEVEL_FUNC_PACK level_func_pack;
+        CursorAfterString(infile,"Enter the height of the plane:");
         fscanf(infile,"%lf",&plane_params.P[2]);
         (void) printf("%f\n",plane_params.P[2]);
         plane_params.N[0] = plane_params.N[1] = 0.0;
         plane_params.N[2] = 1.0;
-	
+        
 
-	static CIRCLE_PARAMS circle_constr_params;
+        static CIRCLE_PARAMS circle_constr_params;
 
-	level_func_pack.wave_type = ELASTIC_BOUNDARY;
-	level_func_pack.set_3d_bdry = YES;
+        level_func_pack.wave_type = ELASTIC_BOUNDARY;
+        level_func_pack.set_3d_bdry = YES;
         level_func_pack.neg_component = 3;
         level_func_pack.pos_component = 3;
-	level_func_pack.func_params = (POINTER)&plane_params;
+        level_func_pack.func_params = (POINTER)&plane_params;
         level_func_pack.func = plane_func;
         level_func_pack.is_mono_hs = YES;
         level_func_pack.constr_params = (POINTER)&circle_constr_params;
@@ -128,16 +151,65 @@ void initFabric(Front* front, FILE* infile, SURFACE* &surf) {
                                 &circle_constr_params.cen[1]);
         (void) printf("%f %f\n",circle_constr_params.cen[0],
                                 circle_constr_params.cen[1]);
-	CursorAfterString(infile,"Enter circle radius:");
+        CursorAfterString(infile,"Enter circle radius:");
         fscanf(infile,"%lf",&circle_constr_params.R);
         (void) printf("%f\n",circle_constr_params.R);
 
-	FT_InitIntfc(front,&level_func_pack);	
-	SURFACE** s;
-	intfc_surface_loop(front->interf,s) {
-	    if (wave_type(*s) == level_func_pack.wave_type) {
-		surf = *s;
-		break;
-	    }
-	}
+        FT_InitIntfc(front,&level_func_pack);
+        SURFACE** s;
+        intfc_surface_loop(front->interf,s) {
+            if (wave_type(*s) == level_func_pack.wave_type) {
+                surf = *s;
+                break;
+            }
+        }
+}
+
+void initFabricRectangle(Front* front, FILE* infile, SURFACE* &surf)
+{
+	static PLANE_PARAMS plane_params;
+        static LEVEL_FUNC_PACK level_func_pack;
+        CursorAfterString(infile,"Enter the height of the plane:");
+        fscanf(infile,"%lf",&plane_params.P[2]);
+        (void) printf("%f\n",plane_params.P[2]);
+        plane_params.N[0] = plane_params.N[1] = 0.0;
+        plane_params.N[2] = 1.0;
+        
+
+        static RECT_CONSTR_PARAMS rect_constr_params;
+	rect_constr_params.dim = 3;
+
+        level_func_pack.wave_type = ELASTIC_BOUNDARY;
+        level_func_pack.set_3d_bdry = YES;
+        level_func_pack.neg_component = 3;
+        level_func_pack.pos_component = 3;
+        level_func_pack.func_params = (POINTER)&plane_params;
+        level_func_pack.func = plane_func;
+        level_func_pack.is_mono_hs = YES;
+        level_func_pack.constr_params = (POINTER)&rect_constr_params;
+        level_func_pack.constr_func = rect_constr_func;
+        level_func_pack.num_mono_hs = 1;
+        CursorAfterString(infile,"Enter lower boundary of plane:");
+        fscanf(infile,"%lf %lf %lf",&rect_constr_params.L[0],
+                                &rect_constr_params.L[1],
+				&rect_constr_params.L[2]);
+        (void) printf("%f %f %f\n",rect_constr_params.L[0],
+                                rect_constr_params.L[1],
+				rect_constr_params.L[2]);
+        CursorAfterString(infile,"Enter upper boundary of plane:");
+        fscanf(infile,"%lf %lf %lf",&rect_constr_params.U[0],
+                                &rect_constr_params.U[1],
+				&rect_constr_params.U[2]);
+        (void) printf("%f %f %f\n",rect_constr_params.U[0],
+                                rect_constr_params.U[1],
+				rect_constr_params.U[2]);
+
+        FT_InitIntfc(front,&level_func_pack);
+        SURFACE** s;
+        intfc_surface_loop(front->interf,s) {
+            if (wave_type(*s) == level_func_pack.wave_type) {
+                surf = *s;
+                break;
+            }
+        }
 }

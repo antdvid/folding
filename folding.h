@@ -4,6 +4,7 @@
 #include "../Collision/collid.h"
 #include "drag.h"
 #include "spring_solver.h"
+#include "bending.h"
 
 class Folder {
 public:

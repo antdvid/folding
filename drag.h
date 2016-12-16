@@ -2,7 +2,6 @@
 #define DRAG_H
 #include <algorithm>
 #include "spring_solver.h"
-#include <FronTier.h>
 
 class SpringVertex;
 
@@ -78,6 +77,21 @@ public:
     std::string id() {return "GravityDrag";}
     GravityDrag(const double c[], const double r, const double a[], double t);
     GravityDrag(){}
+};
+
+class GravityBoxDrag : public Drag 
+{
+public:
+    double L[3];
+    double U[3];
+    double g[3];
+    bool isPresetPoint(SpringVertex*);
+    void setVel(SpringVertex*) {};
+    void setAccel(SpringVertex*);
+    Drag* clone(const Drag::Info&);
+    std::string id() {return "GravityBoxDrag";}
+    GravityBoxDrag(double t);
+    GravityBoxDrag(){}
 };
 
 class MultiplePointDrag : public Drag {

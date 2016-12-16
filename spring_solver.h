@@ -10,8 +10,9 @@ struct SpringVertex
 {
     double* x; //pointing to Point->x
     double* v; //pointing to left_state(Point)->vel
-    double f[3];
-    double f_ext[3];
+    void* org_vtx;//pointing to external point
+    double accel[3];
+    double ext_accel[3];
     std::vector<size_t> index_nb;
     std::vector<double> length0; 
     bool is_registered;
@@ -24,7 +25,7 @@ struct SpringVertex
     ~SpringVertex(){}
     double* getVel() {return v;}
     double* getCoords() {return x;}
-    double* getExternalAccel() {return f_ext;}
+    double* getExternalAccel() {return ext_accel;}
     void addNeighbor(size_t,double);
     bool isRegistered(){return is_registered;}
     void setRegistered(){is_registered = true;}
@@ -74,6 +75,15 @@ public:
     void computeAccel(SpringVertex*);
     void computeJacobian();
 
+    //provide interface for computing acceleration externally
+    class ExtForceInterface 
+    {
+	public:
+	virtual void computeExternalForce() = 0;
+	virtual double* getExternalForce(SpringVertex*) = 0;	
+    };
+    std::vector<ExtForceInterface*> ext_forces;
+
 protected:
     std::vector<SpringVertex*> pts;
     void setPresetVelocity(SpringVertex*);
@@ -97,9 +107,10 @@ private:
 };
 
 //solve spring-mass ode system using
-//2nd-order implicit Admas-Moulton method
+//2nd-order implicit BDF method
 class IM_SPRING_SOLVER: public SpringSolver {
 public:
    void doSolve(double);
 };
+
 #endif

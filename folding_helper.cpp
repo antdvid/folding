@@ -31,10 +31,11 @@ static SpringVertex* FT_Point2SpringVertex(POINT* p) {
     SpringVertex* spv = new SpringVertex();
     STATE* state = (STATE*)left_state(p);
     for (int i = 0; i < 3; ++i)
-        spv->f_ext[i] = state->fluid_accel[i] +
+        spv->ext_accel[i] = state->fluid_accel[i] +
                    state->other_accel[i];
     spv->x = Coords(p);
     spv->v = state->vel;
+    spv->org_vtx = (void*)p;
     return spv;
 }
 
@@ -206,4 +207,3 @@ static void unsortCurve(CURVE* c) {
         sorted(b->end) = NO;
     }
 }
- 

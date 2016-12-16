@@ -14,6 +14,7 @@ class DragProtoInit {
     TuckDrag td;
     CloseUmbrellaDrag cud;
     RelaxDrag rd;
+    GravityBoxDrag gbd;
     DragProtoInit() {
 	Drag::prototypes.push_back(&pd);
 	Drag::prototypes.push_back(&gd);
@@ -22,6 +23,7 @@ class DragProtoInit {
 	Drag::prototypes.push_back(&td);
 	Drag::prototypes.push_back(&cud);
 	Drag::prototypes.push_back(&rd);
+	Drag::prototypes.push_back(&gbd);
     }
     static DragProtoInit singleton;
 };
