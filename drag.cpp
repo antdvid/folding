@@ -3,11 +3,56 @@
 const double EPS = 1e-15;
 static double pointToLineDistance(double[],double[], double[]);
 static void spinToAxis(double c[], double dir[], double theta, double p[]);
-static bool isPointInBox(double*,  double[][3]);
-static bool isPointOnLine(double[],double[],double[], double);
 static bool isPointInBall(double p[], double c[], double r);
+static double Dot3d(const double*,const double*);
+static double Mag3d(const double*);
 double Drag::m_thickness = 0.001;
 double Drag::m_tol = 0.001;
+
+bool PLANE::isFront(double *p)
+{
+    double v[3] = {0};
+    for (int i = 0; i < 3; ++i)
+	v[i] = p[i] - center[i];
+    if (Dot3d(v, nor) > 0)
+	return true;
+    else
+	return false;
+}
+
+bool PLANE::isBack(double *p)
+{
+    return !isFront(p);
+}
+
+double PLANE::distance(double *p)
+{
+    double v[3] = {0};
+    for (int i = 0; i < 3; ++i)
+    {
+	v[i] = p[i] - center[i];
+    }
+    return fabs(Dot3d(v, nor));
+}
+
+PLANE::PLANE(const double*p, const double* v)
+{
+    for (int i = 0; i < 3; ++i)
+    {
+	center[i] = p[i];
+	dir[i] = v[i];
+    }
+    double v_m = Mag3d(v);
+    if (v_m < MACH_EPS)
+    {
+	std::cout << "v_m is too small" << std::endl;
+	clean_up(ERROR);
+    }
+    for (int i = 0; i < 3; ++i)
+    {
+	nor[i] = dir[i]/v_m;
+    }
+}
 
 static double distance_between(const double p1[], 
 		const double p2[], int dim) {
@@ -26,12 +71,12 @@ static void Cross3d(const double B[], const double C[], double ans[])
 }
 
 
-static double Dot3d(double* v1, double* v2) 
+static double Dot3d(const double* v1, const double* v2) 
 { 
     return v1[0]*v2[0]+v1[1]*v2[1]+v1[2]*v2[2];
 }
 
-static double Mag3d(double* v) 
+static double Mag3d(const double* v) 
 { 
     return sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
 }
@@ -96,11 +141,19 @@ Drag* PointDrag::clone(const Drag::Info& info) {
     }
 }
 
-bool PointDrag::isPresetPoint(SpringVertex* sv) {
-    double *p = sv->getCoords();
-    return rad*rad > (p[0]-cent[0])*(p[0]-cent[0]) +
+void PointDrag::preprocess(std::vector<SpringVertex*>& pts) {
+    if (!first) return;
+    first = false;
+    for (size_t i = 0; i < pts.size(); ++i)
+    {
+        double *p = pts[i]->getCoords();
+	if (rad*rad > (p[0]-cent[0])*(p[0]-cent[0]) +
                      (p[1]-cent[1])*(p[1]-cent[1]) +
-                     (p[2]-cent[2])*(p[2]-cent[2]);
+                     (p[2]-cent[2])*(p[2]-cent[2]))
+	    pts[i]->setRegistered();
+	else
+	    pts[i]->unsetRegistered();
+    }
 }
 
 void PointDrag::setVel(SpringVertex* sv) {
@@ -115,8 +168,12 @@ void PointDrag::setAccel(SpringVertex* sv) {
         std::copy(m_a,m_a+3,a);
 }    
 
-PointDrag::PointDrag(const double c[], double r, const double v[], const double a[],  double t)
-            : Drag(t), rad(r) {
+PointDrag::PointDrag(
+	const double c[], 
+	double r, 
+	const double v[], 
+	const double a[],  
+	double t) : Drag(t), rad(r) {
     if (v) 
 	std::copy(v,v+3,m_v);
     else 
@@ -160,12 +217,22 @@ Drag* GravityDrag::clone(const Drag::Info& info) {
 }
 
 //MultiplePointDrag
-bool MultiplePointDrag::isPresetPoint(SpringVertex* sv) {
-    double *p = sv->getCoords();
-    if (getDragPointNumber(p) != -1)
-	return true;
-    else
-        return false;
+void MultiplePointDrag::preprocess(std::vector<SpringVertex*>& pts) {
+    if (!first) return;
+    first = false;
+    for (size_t i = 0; i < pts.size(); ++i)
+    {
+	int id = getDragPointNumber(pts[i]->getCoords());
+    	if (id != -1)
+	{
+	    pts[i]->point_type = id;
+	    pts[i]->setRegistered();
+	}
+	else
+	{
+	    pts[i]->unsetRegistered();
+	}
+    }
 }
 
 int MultiplePointDrag::getDragPointNumber(double p[]) {
@@ -177,22 +244,18 @@ int MultiplePointDrag::getDragPointNumber(double p[]) {
 }
 
 void MultiplePointDrag::setVel(SpringVertex* sv) {
-    double *p = sv->getCoords();
     double *vel = sv->getVel();
 
-    int index = getDragPointNumber(p);
-    if ( index  > -1) {
-	size_t i = static_cast<size_t>(index);
+    if (sv->isRegistered()) {
+	size_t i = static_cast<size_t>(sv->point_type);
 	std::copy(dragPoints[i]->m_v,dragPoints[i]->m_v+3,vel);
     }
 } 
 
 void MultiplePointDrag::setAccel(SpringVertex* sv) {
-    double *p = sv->getCoords();
     double *accel = sv->getExternalAccel();
-    int index = getDragPointNumber(p);
-    if ( index  > -1) {
-	size_t i = static_cast<size_t>(index);
+    if (sv->isRegistered()) {
+	size_t i = static_cast<size_t>(sv->point_type);
         std::copy(dragPoints[i]->m_a,dragPoints[i]->m_a+3,accel);
     }
 }
@@ -233,21 +296,30 @@ Drag* MultiplePointDrag::clone(const Drag::Info& info) {
 }
 
 //FoldDrag
-bool FoldDrag::isPresetPoint(SpringVertex* sv) {
-    double *p = sv->getCoords();
-    double dist = pointToLineDistance(p,spinOrig,spinDir);
-    if (dist < getThickness())
+void FoldDrag::preprocess(std::vector<SpringVertex*>& pts) {
+    if (!first) return;
+    first = false;
+
+    for (size_t i = 0; i < pts.size(); ++i)
     {
-	sv->point_type = FREE_POINT;
-	return false;
-    }
-    else if (isPointInBox(p,foldingBox)) {
-	sv->point_type = ROTATE_POINT;
-	return true;
-    }
-    else {
-	sv->point_type = STATIC_POINT;
-        return true;
+	SpringVertex* sv = pts[i];
+        double *p =sv->getCoords();
+        double dist = pointToLineDistance(p,spinOrig,spinDir);
+        if (dist < getThickness())
+        {
+	    sv->point_type = FREE_POINT;
+	    sv->unsetRegistered();
+     	}
+    	else if (plane->isBack(p)) 
+	{
+	    sv->point_type = ROTATE_POINT;
+	    sv->setRegistered();
+    	}
+    	else 
+	{
+	    sv->point_type = STATIC_POINT;
+            sv->setRegistered();
+    	}
     }
 }
 
@@ -264,13 +336,6 @@ static double pointToLineDistance(double p[],double orig[], double dir[]) {
     return Mag3d(v);
 }
 
-static bool isPointInBox(double* p, double box[2][3]) {
-    for (size_t i = 0; i < 3; ++i) {
-	if (p[i] < box[0][i] || p[i] > box[1][i])
-	    return false;
-    } 
-    return true;
-}
 
 void FoldDrag::setVel(SpringVertex* sv) {
     double *p0 = sv->getCoords();
@@ -313,30 +378,10 @@ Drag* FoldDrag::clone(const Drag::Info& info) {
         std::copy(it,it+3,td->spinOrig);
         std::copy(it+3,it+6,td->spinDir);
         td->angVel = *(it+6);
-	std::copy(it+7,it+10,td->foldingBox[0]);
-	std::copy(it+10,it+13,td->foldingBox[1]);
+	td->plane = new PLANE(it+7, it+10);
         td->m_t = *(it+13);
         return td;
     }
-}
-
-//TuckDrag
-static bool isPointOnLine(double p[],  double p1[], 
-		     double p2[], double tol) {
-    double v[3];
-    double v1[3], v2[3];
-    for (size_t i = 0; i < 3; ++i) {
-	v[i] = p2[i] - p1[i];
-	v1[i] = p[i]  - p1[i];
-	v2[i] = p[i]  - p2[i];
-    }
-    if (pointToLineDistance(p,p1,v) < tol && 
-	Dot3d(v1,v2) < 0)  
-    {
-	return true;		
-    }     
-    else
-	return false;
 }
 
 static bool isPointInBall(double p[], double c[], double r) {
@@ -345,93 +390,41 @@ static bool isPointInBall(double p[], double c[], double r) {
     return (Mag3d(v) < r) ? true : false;
 }
 
-bool TuckDrag::isPresetPoint(SpringVertex* sv) {
-    double* p = sv->getCoords();
-    if (isPointOnLine(p,tuck_line[0],tuck_line[1],getTolerance()))
-    {
-	sv->point_type = ROTATE_POINT;
-	return true;
-    }
-    else if (isPointInBox(p,constrain_box))
-    {
-        sv->point_type = STATIC_POINT;
-	return true;
-    }
-    else
-    {
-	sv->point_type = FREE_POINT;
-	return false;
-    }
-}
-
-Drag* TuckDrag::clone(const Drag::Info& info) {
-    if (info.data().size() != 20) {
-	std::cout << "Tuck drag should have "
-                  << "20 parameters, "
-                  << "but " << info.data().size()
-                  << " parameters are given"
-                  << std::endl;
-        return NULL;
-    }
-    else {
-	TuckDrag* td = new TuckDrag();
-	const double* it = &(info.data().front());
-	std::copy(it,    it+3, td->tuck_line[0]);
-	std::copy(it+3,  it+6, td->tuck_line[1]);
-	std::copy(it+6,  it+9, td->spinOrig);
-	std::copy(it+9, it+12, td->spinDir);
-	td->angVel = *(it+12);
-	std::copy(it+13, it+16, td->constrain_box[0]);
-	std::copy(it+16, it+19, td->constrain_box[1]);
-	td->m_t = *(it+19);
-	return td;
-    }
-}
-
-void TuckDrag::setVel(SpringVertex* sv) {
-    double *p0 = sv->getCoords();
-    double *v = sv->getVel();
-    double p1[3];
-    std::copy(p0,p0+3,p1);
-
-    if (sv->point_type == ROTATE_POINT) {
-    	double theta = angVel * m_dt;
-    	spinToAxis(spinOrig,spinDir,theta,p1);
-    	for (size_t i = 0; i < 3; ++i)
-            v[i] = (p1[i] - p0[i])/m_dt;
-    }
-    else 
-	return;
-}
-
-void TuckDrag::setAccel(SpringVertex* sv) {
-    return;
-}
-
 //closeUmbrellaDrag
-bool CloseUmbrellaDrag::isPresetPoint(SpringVertex* sv) {
-    double d_theta = 2*M_PI/num_tuck_line;
-    double theta = 0;
-    double *p = sv->getCoords();
-    double len = distance_between(p,spinOrig,3);
-    if (!isPointInBall(p,spinOrig,EPS)) {
-        theta = (p[1] > spinOrig[1]) ? acos((p[0]-spinOrig[0])/len) :
+void CloseUmbrellaDrag::preprocess(std::vector<SpringVertex*>& pts) {
+    if (!first) 
+	return;
+    first = false;
+    for (size_t i = 0; i < pts.size(); ++i)
+    {
+        double d_theta = 2*M_PI/num_tuck_line;
+    	double theta = 0;
+	SpringVertex* sv = pts[i];
+    	double *p = sv->getCoords();
+    	double len = distance_between(p,spinOrig,3);
+    	if (!isPointInBall(p,spinOrig,EPS)) 
+	{
+            theta = (p[1] > spinOrig[1]) ? acos((p[0]-spinOrig[0])/len) :
 				       acos((p[0]-spinOrig[0])/len) + M_PI;
-	double theta_l = floor(theta/d_theta)*d_theta;
-	double theta_r = ceil(theta/d_theta)*d_theta;
-	double dist = std::min(len*fabs(sin(theta-theta_l)),len*fabs(sin(theta-theta_r)));
-	if (dist < getTolerance()) {
-	    sv->point_type = ROTATE_POINT;
-	    return true;
-	}
-	else {
-	    sv->point_type = FREE_POINT;
-	    return false;
-	}
-    }
-    else {
-	sv->point_type = STATIC_POINT;
-    	return true;
+	    double theta_l = floor(theta/d_theta)*d_theta;
+	    double theta_r = ceil(theta/d_theta)*d_theta;
+	    double dist = std::min(len*fabs(sin(theta-theta_l)),len*fabs(sin(theta-theta_r)));
+	    if (dist < 1.1*getTolerance()) 
+	    {
+	        sv->point_type = ROTATE_POINT;
+	        sv->setRegistered();
+	    }
+	    else 
+	    {
+	        sv->point_type = FREE_POINT;
+		sv->unsetRegistered();
+	    }
+    	}
+    	else 
+	{
+	    sv->point_type = STATIC_POINT;
+	    sv->setRegistered();
+    	}
     }
 }
 
@@ -444,7 +437,8 @@ void CloseUmbrellaDrag::setVel(SpringVertex* sv) {
     double p_to_o[3];
     std::transform(p0,p0+3,spinOrig,p_to_o,std::minus<double>());
 
-    if (sv->point_type == ROTATE_POINT) {
+    if (sv->point_type == ROTATE_POINT) 
+    {
         double theta = angVel * m_dt;
 	Cross3d(p_to_o,spinDir,rotateDir);
 	if (Mag3d(rotateDir) < EPS) return;
@@ -486,7 +480,6 @@ Drag* RelaxDrag::clone(const Drag::Info& info) {
 }
 
 //GravityBoxDrag
-// Point Drag
 Drag* GravityBoxDrag::clone(const Drag::Info& info) {
     if (info.data().size() != 10) {
         std::cout << "GragBoxdrag should have "
@@ -508,12 +501,21 @@ Drag* GravityBoxDrag::clone(const Drag::Info& info) {
     }
 }
 
-bool GravityBoxDrag::isPresetPoint(SpringVertex* sv) {
-    double *p = sv->getCoords();
-    for (int i = 0; i < 3; ++i)
-	if (p[i] < L[i] || p[i] > U[i])
-	   return false;
-    return true;
+void GravityBoxDrag::preprocess(std::vector<SpringVertex*>& sv) {
+    if (!first) return;
+    first = false;
+    for (size_t i = 0; i < sv.size(); ++i)
+    {
+        double *p = sv[i]->getCoords();
+	bool is_out_of_box = false;
+        for (size_t j = 0; j < 3; ++j)
+	    if (p[j] < L[j] || p[j] > U[j])
+		is_out_of_box = true;;
+    	if (is_out_of_box)
+	    sv[i]->unsetRegistered();
+	else
+	    sv[i]->setRegistered();
+    }
 }
 
 void GravityBoxDrag::setAccel(SpringVertex* sv) {
@@ -522,3 +524,107 @@ void GravityBoxDrag::setAccel(SpringVertex* sv) {
         std::copy(g,g+3,a);
 }
 
+//CompressDrag
+//add force to compress the surface from several direction
+Drag* CompressDrag::clone(const Drag::Info& info)
+{
+    if (info.data().size() != 8)
+    {
+	std::cout << "Compress Drag should have "
+		  << "8 parameters, "
+		  << "but " << info.data().size()
+		  << " parameters are given" 
+		  << std::endl;
+      	return NULL;
+    }
+    else
+    {
+	const std::vector<double> & v = info.data();
+	CompressDrag* cd = new CompressDrag();
+	for (size_t i = 0; i < 3; ++i)
+	{
+	    cd->center[i] = v[i];
+	    cd->accel[i] = v[i+3];
+	}
+	cd->thickness = v[6];
+	cd->m_t = v.back();
+	return cd;
+    }
+}
+
+void CompressDrag::preprocess(std::vector<SpringVertex*>& sv)
+{
+    if (!first) return;
+    first = false;
+    for (size_t i = 0; i < sv.size(); ++i)
+    {
+        double* p = sv[i]->getCoords();
+        double v[3] = {0};
+        for (size_t j = 0; j < 3; ++j)
+        {
+	    v[j] = p[j] - center[j];
+        }
+        if (fabs(Dot3d(v, accel)/Mag3d(accel)) < thickness*0.5)
+	{
+	    sv[i]->setRegistered();
+	}
+        else
+	    sv[i]->unsetRegistered();
+    }
+}
+
+void CompressDrag::setAccel(SpringVertex* sv)
+{
+    double* a = sv->getExternalAccel();
+    std::fill(a, a+3, 0);
+    if (sv->isRegistered())
+	return;
+
+    double v[3] = {0};
+    double* p = sv->getCoords();
+    for (size_t j = 0; j < 3; ++j)
+	v[j] = p[j] - center[j];
+    double dist = Dot3d(v, accel)/Mag3d(accel);
+    if (dist < -0.5*thickness) 
+    {
+	//back of the plane, push in the same direction
+	std::copy(accel, accel+3, a);
+    }
+    else if (dist > 0.5*thickness)
+    {
+	//front of the plane, push in opposite direction
+	for (int i = 0; i < 3; ++i)
+	    a[i] = -accel[i];
+    }
+}
+
+//RelaxDrag
+void RelaxDrag::preprocess(std::vector<SpringVertex*>& pts)
+{
+    if (!first) return;
+    first = false;
+    double L = std::numeric_limits<double>::max();
+    double S = std::numeric_limits<double>::min();
+    double min_coords[3] = {L, L, L};
+    double max_coords[3] = {S, S, S};
+    SpringVertex* b_pts[6];
+    for (SpringVertex* sv : pts)
+    {
+	sv->unsetRegistered();
+	for (int i = 0; i < 3; ++i)
+	{
+	    if (sv->getCoords()[i] < min_coords[i])
+	    {
+		b_pts[i] = sv;
+		min_coords[i] = sv->getCoords()[i];
+	    }
+	    if (sv->getCoords()[i] > max_coords[i])
+	    {
+		b_pts[3+i] = sv;
+		max_coords[i] = sv->getCoords()[i];
+	    }
+	}
+    }
+    for (int i = 0; i < 6; ++i)
+	b_pts[i]->setRegistered();
+}

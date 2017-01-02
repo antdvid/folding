@@ -11,19 +11,19 @@ class DragProtoInit {
     GravityDrag gd;
     MultiplePointDrag md;
     FoldDrag sd;
-    TuckDrag td;
     CloseUmbrellaDrag cud;
     RelaxDrag rd;
     GravityBoxDrag gbd;
+    CompressDrag cpd;
     DragProtoInit() {
 	Drag::prototypes.push_back(&pd);
 	Drag::prototypes.push_back(&gd);
 	Drag::prototypes.push_back(&md);
 	Drag::prototypes.push_back(&sd);
-	Drag::prototypes.push_back(&td);
 	Drag::prototypes.push_back(&cud);
 	Drag::prototypes.push_back(&rd);
 	Drag::prototypes.push_back(&gbd);
+	Drag::prototypes.push_back(&cpd);
     }
     static DragProtoInit singleton;
 };

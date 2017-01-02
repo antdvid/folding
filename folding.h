@@ -1,6 +1,7 @@
 #ifndef FOLDING_H
 #define FOLDING_H
 #include<vector>
+#include <set>
 #include "../Collision/collid.h"
 #include "drag.h"
 #include "spring_solver.h"
@@ -24,11 +25,11 @@ protected:
     double getThickness(){return m_thickness;}
     double getFrameStepSize() {return max_dt;}
     std::vector<Drag*> drags;
+    SpringSolver::SpringParameter spring_params;
 private:
     static double max_dt;
     static double m_thickness;
     SpringSolver::ODE_SCHEME ode_scheme = SpringSolver::EXPLICIT;
-    SpringSolver::SpringParameter spring_params;
 };
 
 struct Movie;
@@ -42,6 +43,10 @@ public:
 private:
     void doFolding(Drag*,SpringSolver*,CollisionSolver*);
     void straightenStrings();
+    double computePotentialEnergy();
+    void recordData(double, std::string);
+    void appendDataToFile(double, double, std::string);
+    std::set<std::string> dataFileSet;
     INTERFACE* m_intfc;
     Movie* movie;
 };
@@ -51,6 +56,7 @@ struct Movie {
     int mv_count;
     std::string mv_gv_dir;
     std::string mv_vtk_dir; 
+    std::string out_dir;
     INTERFACE* mv_intfc;
     bool doMakeMovie;
     void recordMovieFrame();

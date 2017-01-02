@@ -12,10 +12,19 @@ class Drag {
     static double m_tol;
 public:
     double m_t;
-    virtual bool isPresetPoint(SpringVertex*) = 0; 
+    
+    //set point type and register points
+    virtual void preprocess(std::vector<SpringVertex*>&){}; 
 
+    //update parameters for next step
+    virtual void postprocess(std::vector<SpringVertex*>&){}; 
+
+    //set velocity for each spring vertex
+    //according to point type
     virtual void setVel(SpringVertex*) = 0;
 
+    //set acceleration for each spring vertex
+    //according to point type
     virtual void setAccel(SpringVertex*) = 0;
 
     void setTimeStepSize(double dt) {m_dt = dt;}
@@ -50,8 +59,22 @@ public:
 protected:
     enum {FREE_POINT,ROTATE_POINT,STATIC_POINT};
     double m_dt;
+    bool first = true;
     Drag(double t) : m_t(t) {}
     Drag(){}
+};
+
+class PLANE
+{
+    double center[3];
+    double dir[3];
+    double nor[3];
+
+public: 
+    bool isFront(double* p);    
+    bool isBack(double* p);
+    double distance(double* p);
+    PLANE(const double*, const double*);
 };
 
 class PointDrag : public Drag {
@@ -60,7 +83,7 @@ public:
     double rad;
     double m_v[3];
     double m_a[3];
-    virtual bool isPresetPoint(SpringVertex*);
+    virtual void preprocess(std::vector<SpringVertex*>&);
     virtual void setVel(SpringVertex*);
     virtual void setAccel(SpringVertex*);
 
@@ -85,7 +108,7 @@ public:
     double L[3];
     double U[3];
     double g[3];
-    bool isPresetPoint(SpringVertex*);
+    void preprocess(std::vector<SpringVertex*>&);
     void setVel(SpringVertex*) {};
     void setAccel(SpringVertex*);
     Drag* clone(const Drag::Info&);
@@ -104,7 +127,7 @@ public:
 	DragPoint(double[],double,double[],double[]);
     };
     std::vector<DragPoint*> dragPoints;
-    bool isPresetPoint(SpringVertex*);
+    void preprocess(std::vector<SpringVertex*>&);
     void setVel(SpringVertex*);
     void setAccel(SpringVertex*);
     int getDragPointNumber(double []);
@@ -117,32 +140,17 @@ public:
 
 class FoldDrag : public Drag {
 public:
+    PLANE* plane;
+    double angVel;
     double spinOrig[3];
     double spinDir[3];
-    double angVel;
-    double foldingBox[2][3];
     
-    bool isPresetPoint(SpringVertex*);
+    void preprocess(std::vector<SpringVertex*>&);
     void setVel(SpringVertex*);
     void setAccel(SpringVertex*);
     std::string id() {return "FoldDrag";}
     virtual Drag* clone(const Drag::Info&);
     FoldDrag() {}
-};
-
-class TuckDrag : public Drag {
-    double tuck_line[2][3];
-    double spinOrig[3];
-    double spinDir[3];
-    double angVel;
-    double constrain_box[2][3];
-public:
-    bool isPresetPoint(SpringVertex*);
-    std::string id() {return "TuckDrag";}
-    Drag* clone(const Drag::Info&);
-    void setVel(SpringVertex*);
-    void setAccel(SpringVertex*);
-    TuckDrag(){}
 };
 
 class CloseUmbrellaDrag : public Drag {
@@ -151,7 +159,7 @@ class CloseUmbrellaDrag : public Drag {
     double spinDir[3];
     double angVel;
 public:
-    bool isPresetPoint(SpringVertex*);
+    void preprocess(std::vector<SpringVertex*>&);
     std::string id() {return "CloseUmbrellaDrag";}
     Drag* clone(const Drag::Info&);
     void setVel(SpringVertex*);
@@ -161,10 +169,22 @@ public:
 
 class RelaxDrag : public Drag {
 public: 
-    bool isPresetPoint(SpringVertex* sv) {return false;}
     std::string id() {return "RelaxDrag";}
     Drag* clone (const Drag::Info&);
+    void preprocess(std::vector<SpringVertex*>&);
     void setVel(SpringVertex* sv) {}
     void setAccel(SpringVertex* sv) {}
+};
+
+class CompressDrag: public Drag {
+    double center[3];
+    double accel[3];
+    double thickness;
+public:
+    void preprocess(std::vector<SpringVertex*>&);
+    std::string id() {return "CompressDrag";}
+    Drag* clone(const Drag::Info&);
+    void setVel(SpringVertex* sv) {}
+    void setAccel(SpringVertex* sv);
 };
 #endif

@@ -66,6 +66,28 @@ void Folder3d::doFolding() {
     straightenStrings();
 }
 
+double Folder3d::computePotentialEnergy()
+{
+    SURFACE** s;
+    double E = 0;
+    intfc_surface_loop(m_intfc, s)
+    {
+	if (wave_type(*s) != ELASTIC_BOUNDARY)
+	    continue;
+	TRI* t;
+	surf_tri_loop(*s, t)
+	{
+	    for (int i = 0; i < 3; ++i)
+	    {
+		double len = separation(Point_of_tri(t)[i],
+				Point_of_tri(t)[(i+1)%3], 3); 
+		E += 0.5*spring_params.k*pow(len - t->side_length0[i], 2.0);	
+	    }
+	}
+    } 
+    return E;
+}
+
 void Folder3d::doFolding(
      Drag* drag, 
      SpringSolver* sp_solver,
@@ -94,7 +116,9 @@ void Folder3d::doFolding(
 	cd_solver->recordOriginPosition();
 	cd_solver->setTimeStepSize(dt);
 
-    	sp_solver->doSolve(dt);
+    	sp_solver->solve(dt);
+	
+	recordData(t,movie->out_dir);
 
 	//cd_solver->resolveCollision();
 
@@ -102,6 +126,26 @@ void Folder3d::doFolding(
 	if (movie->isMovieTime(t))
 	    movie->recordMovieFrame();
     }
+}
+
+void Folder3d::appendDataToFile(double x, double y, std::string fname)
+{
+    //if new file, clear it and add to list
+    std::ofstream ofs;
+    if (dataFileSet.find(fname) == dataFileSet.end())
+    {
+	dataFileSet.insert(fname);
+	ofs.open(fname, std::ofstream::trunc);
+	ofs.close();
+    }
+    ofs.open(fname, std::ofstream::app);
+    ofs << x << " " << y << std::endl;
+    ofs.close();
+}
+
+void Folder3d::recordData(double t, std::string out_dir)
+{
+    appendDataToFile(t, computePotentialEnergy(), out_dir+"/"+"energy");
 }
 
 void Folder3d::setupMovie(std::string dname, std::string oname, 
@@ -112,6 +156,7 @@ void Folder3d::setupMovie(std::string dname, std::string oname,
     std::string pathvtk = oname + '/' + dname + "/vtk"; 
     movie->mv_gv_dir = pathgv;
     movie->mv_vtk_dir = pathvtk; 
+    movie->out_dir = oname;
     movie->doMakeMovie = true;
     movie->mv_intfc = this->m_intfc;
     std::string sys_cmd = "mkdir -p " + pathgv;

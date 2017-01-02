@@ -83,6 +83,7 @@ void EX_SPRING_SOLVER::doSolve(double t) {
             pts[i]->v[j] = v_new[i][j];
         }
     }
+
 }
 
 double EX_SPRING_SOLVER::getTimeStepSize() {

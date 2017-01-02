@@ -76,17 +76,14 @@ void SpringSolver::computeAccel(SpringVertex* sv) {
         double vec[3] = {0};
         double v_rel[3] = {0};
 
-        if (sv->isRegistered())
-        {
-            setPresetVelocity(sv);
-            std::copy(sv->ext_accel,sv->ext_accel+3,sv->accel);
-            return;
-        }
-
 	//reset acceleration
-        for (size_t i = 0; i < dim; ++i)
-            sv->accel[i] = 0.0; 
+	std::fill(sv->accel, sv->accel+3, 0.0);
 
+	m_drag->setVel(sv);
+	m_drag->setAccel(sv);
+        if (sv->isRegistered())
+            return;
+	
  	//add external acceleration: bending
 	for (size_t j = 0; j < ext_forces.size(); ++j)
 	{
@@ -128,31 +125,35 @@ void SpringSolver::computeAccel(SpringVertex* sv) {
 void SpringSolver::computeJacobian() {
 }
 
-void SpringSolver::setDrag(Drag* dg) {
-    m_drag = dg;
-    m_drag->setTimeStepSize(this->getTimeStepSize());
-    for (size_t i = 0; i < pts.size(); ++i)
+void SpringSolver::solve(double dt)
+{
+    if (m_drag) 
     {
-        if (m_drag->isPresetPoint(pts[i])) {
-            printf("Registered point = %f %f %f\n",
-                pts[i]->getCoords()[0],pts[i]->getCoords()[1],
-                pts[i]->getCoords()[2]);
-            pts[i]->setRegistered();
-        }
-        else
-            pts[i]->unsetRegistered();
-
-        m_drag->setVel(pts[i]);
-        m_drag->setAccel(pts[i]);
+	m_drag->setTimeStepSize(dt);
+	m_drag->preprocess(pts);
+	int count = 0;
+	for (SpringVertex* sv : pts)
+	{
+	    if (sv->isRegistered())
+		count++;
+	}
+	printf("%d registered points\n", count);
+    }
+    doSolve(dt);
+    if (m_drag)
+    { 
+	m_drag->postprocess(pts);
     }
 }
 
-void SpringSolver::setPresetVelocity(SpringVertex* sv) {
-    m_drag->setTimeStepSize(this->getTimeStepSize());
-    m_drag->setVel(sv);
+void SpringSolver::setDrag(Drag* dg) {
+    m_drag = dg;
 }
 
 void SpringSolver::resetVelocity() {
     for (size_t i = 0; i < pts.size(); ++i)
+    {
         std::fill(pts[i]->v,pts[i]->v+3,0);
+        std::fill(pts[i]->ext_accel,pts[i]->ext_accel+3,0);
+    }
 }

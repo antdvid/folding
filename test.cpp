@@ -47,6 +47,7 @@ int main(int argc, char** argv)
 	char mesg[256];
 	CursorAfterString(infile,"Enter file path of folding plan:");
         fscanf(infile,"%s",mesg);
+	printf("%s\n", mesg);
 	folder->addDragsFromFile(mesg);
 
 	//set folding movie
@@ -57,7 +58,7 @@ int main(int argc, char** argv)
         //folder->setOdeScheme(SpringSolver::EXPLICIT);
 
 	//set spring parameters: k, lambda, m
-	folder->setSpringParameters(800, 2, 0.001);
+	folder->setSpringParameters(800, 1.0, 0.01);
 
 	//start to fold
 	folder->doFolding();
@@ -81,6 +82,16 @@ void initTestModule(Front* front, SURFACE* &surf) {
 	else
 	    printf("Unknown type = %s\n",mesg);
 	fclose(infile);
+	//set Original Length
+        TRI* t;
+        surf_tri_loop(surf, t)
+        {
+            for (int i = 0; i < 3; ++i)
+            {
+                t->side_length0[i] = separation(Point_of_tri(t)[i],
+                                Point_of_tri(t)[(i+1)%3], 3);
+            }
+        }
 }
 
 void initAirbag(Front* front, FILE* infile, SURFACE* &surf) {

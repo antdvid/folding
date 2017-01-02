@@ -64,9 +64,8 @@ public:
     virtual void setTimeStepSize(double dt) {m_dt = dt;}
     void setParameters(SpringParameter&); 
     void setDrag(Drag*);
-    virtual void doSolve(double) = 0;
     virtual ~SpringSolver(){}
-
+    void solve(double);
     //this function retrieves spring vertex 
     //you can fill in the spring vertex from outside
     std::vector<SpringVertex*>& getSpringMesh() {return pts;}
@@ -85,6 +84,7 @@ public:
     std::vector<ExtForceInterface*> ext_forces;
 
 protected:
+    virtual void doSolve(double) = 0;
     std::vector<SpringVertex*> pts;
     void setPresetVelocity(SpringVertex*);
     SpringParameter springParameter;
