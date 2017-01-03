@@ -15,6 +15,7 @@ class DragProtoInit {
     RelaxDrag rd;
     GravityBoxDrag gbd;
     CompressDrag cpd;
+    SeparateDrag spd;
     DragProtoInit() {
 	Drag::prototypes.push_back(&pd);
 	Drag::prototypes.push_back(&gd);
@@ -24,6 +25,7 @@ class DragProtoInit {
 	Drag::prototypes.push_back(&rd);
 	Drag::prototypes.push_back(&gbd);
 	Drag::prototypes.push_back(&cpd);
+	Drag::prototypes.push_back(&spd);
     }
     static DragProtoInit singleton;
 };

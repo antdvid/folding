@@ -10,7 +10,6 @@ static void initAirbag(Front*,FILE*,SURFACE*&);
 static void initFabric(Front*,FILE*,SURFACE*&);
 void initFabricCircle(Front* front, FILE* infile, SURFACE* &surf);
 void initFabricRectangle(Front* front, FILE* infile, SURFACE* &surf);
-//static void myOptimizeSurf(Front *);
 
 int main(int argc, char** argv)
 {
@@ -114,19 +113,29 @@ void initAirbag(Front* front, FILE* infile, SURFACE* &surf) {
                             &surf);
 }
 
+#include <iFluid.h>
+#include <airfoil.h>
 void initFabric(Front* front, FILE* infile, SURFACE* &surf) {
 	char mesg[256];
 	std::string shape = "Circle";
-	if (CursorAfterStringOpt(infile,"fabric shape:"))
+	if (CursorAfterStringOpt(infile,"Enter fabric shape:"))
 	{
             fscanf(infile,"%s",mesg);
             shape = std::string (mesg);
+	    printf("%s\n", mesg);
 	}
 
 	if( "Circle" == shape)
 	    initFabricCircle(front, infile, surf);
 	else if ("Rectangle" == shape)
 	    initFabricRectangle(front, infile, surf);
+	else if ("CGAL" == shape)
+	{
+	    AF_PARAMS af_params;
+	    af_params.gore_len_fac = 1.0;
+	    front->extra2 = (POINTER)&af_params;
+	    CgalCanopySurface(infile, front, &surf);
+	}
 	else
 	{
 	    std::cout << "Unknown shape " << shape << std::endl;

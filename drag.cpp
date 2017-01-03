@@ -1,7 +1,6 @@
 #include "drag.h"
 #include <iostream>
 const double EPS = 1e-15;
-static double pointToLineDistance(double[],double[], double[]);
 static void spinToAxis(double c[], double dir[], double theta, double p[]);
 static bool isPointInBall(double p[], double c[], double r);
 static double Dot3d(const double*,const double*);
@@ -43,10 +42,10 @@ PLANE::PLANE(const double*p, const double* v)
 	dir[i] = v[i];
     }
     double v_m = Mag3d(v);
-    if (v_m < MACH_EPS)
+    if (v_m < EPS)
     {
 	std::cout << "v_m is too small" << std::endl;
-	clean_up(ERROR);
+	return;
     }
     for (int i = 0; i < 3; ++i)
     {
@@ -61,6 +60,11 @@ static double distance_between(const double p1[],
 	dist += (p1[i]-p2[i])*(p1[i]-p2[i]);
     }
     return sqrt(dist);
+}
+
+static double angleBetween(const double* v1, const double *v2)
+{
+    return acos(Dot3d(v1, v2)/(Mag3d(v1)*Mag3d(v2)));
 }
 
 static void Cross3d(const double B[], const double C[], double ans[])
@@ -80,6 +84,34 @@ static double Mag3d(const double* v)
 { 
     return sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
 }
+
+static double pointToLine(
+	const double* p, 
+	const double *o, 
+	const double *dir, 
+	double* ans_v = NULL)
+{
+    double v[3];
+    for (int i = 0; i < 3; ++i)
+    {
+	v[i] = p[i] - o[i];
+    }
+    double nor_mag = Mag3d(dir);
+    double nor[3];
+    for (int i = 0; i < 3; ++i)
+    {
+	nor[i] = dir[i]/nor_mag;
+    }
+    double v1[3];
+    for (int i = 0; i < 3; ++i)
+    {
+	v1[i] = v[i] - nor[i] * Dot3d(v, nor);
+    }
+    if (ans_v != NULL)
+	std::copy(v1, v1+3, ans_v);
+    return Mag3d(v1);
+}
+
 //Drag
 Drag* Drag::dragFactory(const Drag::Info& info) {
     for (size_t i = 0; i < prototypes.size(); ++i) {
@@ -299,43 +331,29 @@ Drag* MultiplePointDrag::clone(const Drag::Info& info) {
 void FoldDrag::preprocess(std::vector<SpringVertex*>& pts) {
     if (!first) return;
     first = false;
+    PLANE rotate_plane(spinOrig, static_plane->dir);
 
     for (size_t i = 0; i < pts.size(); ++i)
     {
 	SpringVertex* sv = pts[i];
         double *p =sv->getCoords();
-        double dist = pointToLineDistance(p,spinOrig,spinDir);
-        if (dist < getThickness())
+    	if (static_plane->isBack(p)) 
+	{
+	    sv->point_type = STATIC_POINT;
+	    sv->setRegistered();
+    	}
+    	else if (rotate_plane.isFront(p)) 
+	{
+	    sv->point_type = ROTATE_POINT;
+            sv->setRegistered();
+    	}
+        else
         {
 	    sv->point_type = FREE_POINT;
 	    sv->unsetRegistered();
      	}
-    	else if (plane->isBack(p)) 
-	{
-	    sv->point_type = ROTATE_POINT;
-	    sv->setRegistered();
-    	}
-    	else 
-	{
-	    sv->point_type = STATIC_POINT;
-            sv->setRegistered();
-    	}
     }
 }
-
-static double pointToLineDistance(double p[],double orig[], double dir[]) {
-    double v[3] = {0};
-    double proj_v[3] = {0};
-    double len = Mag3d(dir);
-    for (size_t i = 0; i < 3; ++i) {
-	v[i] = p[i] - orig[i];
-	dir[i] /= len;
-	proj_v[i] = v[i]*dir[i];
-	v[i] = v[i] - proj_v[i];
-    }
-    return Mag3d(v);
-}
-
 
 void FoldDrag::setVel(SpringVertex* sv) {
     double *p0 = sv->getCoords();
@@ -378,7 +396,7 @@ Drag* FoldDrag::clone(const Drag::Info& info) {
         std::copy(it,it+3,td->spinOrig);
         std::copy(it+3,it+6,td->spinDir);
         td->angVel = *(it+6);
-	td->plane = new PLANE(it+7, it+10);
+	td->static_plane = new PLANE(it+7, it+10);
         td->m_t = *(it+13);
         return td;
     }
@@ -409,7 +427,7 @@ void CloseUmbrellaDrag::preprocess(std::vector<SpringVertex*>& pts) {
 	    double theta_l = floor(theta/d_theta)*d_theta;
 	    double theta_r = ceil(theta/d_theta)*d_theta;
 	    double dist = std::min(len*fabs(sin(theta-theta_l)),len*fabs(sin(theta-theta_r)));
-	    if (dist < 1.1*getTolerance()) 
+	    if (dist < 1e-5) 
 	    {
 	        sv->point_type = ROTATE_POINT;
 	        sv->setRegistered();
@@ -628,3 +646,129 @@ void RelaxDrag::preprocess(std::vector<SpringVertex*>& pts)
     for (int i = 0; i < 6; ++i)
 	b_pts[i]->setRegistered();
 }
+
+//SeparateDrag
+//add force to separate the surface from several direction
+Drag* SeparateDrag::clone(const Drag::Info& info)
+{
+    if (info.data().size() != 11)
+    {
+	std::cout << "Separate Drag should have "
+		  << "11 parameters, "
+		  << "but " << info.data().size()
+		  << " parameters are given" 
+		  << std::endl;
+      	return NULL;
+    }
+    else
+    {
+	const std::vector<double> & v = info.data();
+	SeparateDrag* cd = new SeparateDrag();
+	for (size_t i = 0; i < 3; ++i)
+	{
+	    cd->spin_center[i] = v[i];
+	    cd->spin_dir[i] = v[i+3];
+	    cd->nor[i] = v[i+6];
+	}
+	cd->angVel = v[9];
+	cd->m_t = v.back();
+	return cd;
+    }
+}
+
+static void computeCenter(std::vector<SpringVertex*>& sv, double* c)
+{
+    if (c == NULL)
+    {
+	std::cout << "memory is not allocated" << std::endl;
+    }
+    std::fill(c, c+3, 0.0);
+    for (SpringVertex* p : sv)
+    {
+	double* coords = p->getCoords();
+	for (int i = 0; i < 3; ++i)
+	{
+	    c[i] += coords[i];
+	}
+    }
+    for (int i = 0; i < 3; ++i)
+    {
+	c[i] /= (double)sv.size();
+    }
+}
+
+void SeparateDrag::preprocess(std::vector<SpringVertex*>& sv)
+{
+    if (!first) return;
+    first = false;
+    double max_radius = 0.0;
+    for (size_t i = 0; i < sv.size(); ++i)
+    {
+	double r = pointToLine(sv[i]->getCoords(), spin_center, spin_dir);
+	max_radius = std::max(max_radius, r);
+    }
+    for (size_t i = 0; i < sv.size(); ++i)
+    {
+	if (pointToLine(sv[i]->getCoords(), spin_center, spin_dir) < 0.8*max_radius)
+       	    sv[i]->unsetRegistered();
+	else
+	    sv[i]->setRegistered();
+    }
+    computeCenter(sv, old_body_center);
+}
+
+void SeparateDrag::postprocess(std::vector<SpringVertex*>& sv)
+{
+    double body_center[3] = {0};
+    computeCenter(sv, body_center);
+    for (SpringVertex* p : sv)
+    {
+	double* coords = p->getCoords();
+	for (int i = 0; i < 3; ++i)
+	{
+	    coords[i] = coords[i] - body_center[i] + old_body_center[i];
+	}
+    }
+}
+
+void SeparateDrag::setVel(SpringVertex* sv)
+{
+    if (!sv->isRegistered())
+	return;
+
+    double* vel = sv->getVel();
+    double* p = sv->getCoords();
+    double v1[3] = {0};
+    pointToLine(p, spin_center, spin_dir, v1);
+    double d_theta = m_dt * angVel;
+    
+    double cross_v[3]; 
+    Cross3d(nor, spin_dir, cross_v);
+
+    double p1[3];
+    std::copy(p, p+3, p1);
+    double theta = angleBetween(v1, nor);
+    double eps = M_PI/36.0;
+    if (theta < M_PI/2.0 && theta > eps)
+    {
+	//spin towards 0
+	if (angleBetween(cross_v, v1) > M_PI/2.0)
+	{
+	    d_theta *= -1;
+	}
+   	spinToAxis(spin_center, spin_dir, d_theta, p1);
+    }
+    else if (theta >= M_PI/2.0 && theta < M_PI-eps)
+    {
+	//spin towards PI
+	if (angleBetween(cross_v, v1) < M_PI/2.0)
+	{
+            d_theta *= -1;
+	}
+	spinToAxis(spin_center, spin_dir, d_theta, p1);	
+    }
+    
+    for (int i = 0; i < 3; ++i)
+	vel[i] = (p1[i] - p[i])/m_dt;    
+}
+

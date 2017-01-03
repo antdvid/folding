@@ -27,6 +27,9 @@ public:
     //according to point type
     virtual void setAccel(SpringVertex*) = 0;
 
+    //return number of parameters needed
+    virtual int getParameterNumber() {return 0;}
+
     void setTimeStepSize(double dt) {m_dt = dt;}
     double getTimeStepSize() {return m_dt;}
     
@@ -66,11 +69,11 @@ protected:
 
 class PLANE
 {
+public: 
     double center[3];
     double dir[3];
     double nor[3];
 
-public: 
     bool isFront(double* p);    
     bool isBack(double* p);
     double distance(double* p);
@@ -140,7 +143,7 @@ public:
 
 class FoldDrag : public Drag {
 public:
-    PLANE* plane;
+    PLANE* static_plane;
     double angVel;
     double spinOrig[3];
     double spinDir[3];
@@ -177,6 +180,7 @@ public:
 };
 
 class CompressDrag: public Drag {
+protected:
     double center[3];
     double accel[3];
     double thickness;
@@ -187,4 +191,21 @@ public:
     void setVel(SpringVertex* sv) {}
     void setAccel(SpringVertex* sv);
 };
+
+class SeparateDrag: public Drag {
+    double spin_center[3];
+    double spin_dir[3];
+    double nor[3];
+    double angVel;
+    double radius;
+    double old_body_center[3];
+public:
+    void preprocess(std::vector<SpringVertex*>&);
+    void postprocess(std::vector<SpringVertex*>&);
+    std::string id() {return "SeparateDrag";}
+    Drag* clone(const Drag::Info&);
+    void setVel(SpringVertex* sv);
+    void setAccel(SpringVertex* sv){}
+};
+
 #endif

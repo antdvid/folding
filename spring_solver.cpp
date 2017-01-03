@@ -135,7 +135,9 @@ void SpringSolver::solve(double dt)
 	for (SpringVertex* sv : pts)
 	{
 	    if (sv->isRegistered())
+	    {
 		count++;
+	    }
 	}
 	printf("%d registered points\n", count);
     }

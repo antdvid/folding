@@ -85,7 +85,7 @@ double Folder3d::computePotentialEnergy()
 	    }
 	}
     } 
-    return E;
+    return E*0.5;
 }
 
 void Folder3d::doFolding(
