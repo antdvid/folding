@@ -57,7 +57,7 @@ int main(int argc, char** argv)
         //folder->setOdeScheme(SpringSolver::EXPLICIT);
 
 	//set spring parameters: k, lambda, m
-	folder->setSpringParameters(800, 1.0, 0.01);
+	folder->setSpringParameters(800, 5.0, 0.01);
 
 	//start to fold
 	folder->doFolding();

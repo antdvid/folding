@@ -46,6 +46,7 @@ void Folder3d::doFolding() {
   
     //configure spring solver
     FT_Intfc2SpringMesh(m_intfc, sp_solver->getSpringMesh());
+
     if (getSpringParams().k == 0 || getSpringParams().m == 0)
 	throw std::invalid_argument("tensile stiffness and mass cannot zero");
     sp_solver->setParameters(getSpringParams());
