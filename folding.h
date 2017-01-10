@@ -1,5 +1,6 @@
 #ifndef FOLDING_H
 #define FOLDING_H
+
 #include<vector>
 #include <set>
 #include "../Collision/collid.h"

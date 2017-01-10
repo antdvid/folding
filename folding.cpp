@@ -199,7 +199,7 @@ void Folder3d::check_force(SpringSolver* sp_solver)
 
     if (!fout1.is_open() || !fout2.is_open())
     {
-	std::cerr << "Open error!\n"; 
+	std::cerr << "Open file error!\n"; 
 	exit(EXIT_FAILURE);
     }
     
