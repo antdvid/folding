@@ -124,7 +124,7 @@ void BendingForce::calculateBendingForce3d2003(
 	std::transform(N2, N2 + 3, u2, 
 	        std::bind1st(std::multiplies<double>(), E_mag));
 
-        double bend_stiff = 0.01;
+        double bend_stiff = 0.1;
         double coeff = bend_stiff * sqr(E_mag) / (N1_mag + N2_mag);
 
         if (Dot3d(n1, n2) > 1.0 + 1.0e-10)
