@@ -40,6 +40,7 @@ public:
     void doFolding();
     Folder3d(){}
     void setupMovie(std::string, std::string, double);
+    void check_force(SpringSolver*);
 private:
     void doFolding(Drag*,SpringSolver*,CollisionSolver*);
     void straightenStrings();
