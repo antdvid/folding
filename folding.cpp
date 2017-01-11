@@ -96,7 +96,7 @@ void Folder3d::doFolding() {
     if (getSpringParams().k == 0 || getSpringParams().m == 0)
 	throw std::invalid_argument("tensile stiffness and mass cannot zero");
     sp_solver->setParameters(getSpringParams());
-    //sp_solver->ext_forces.push_back(new BendingForce(m_intfc));
+    sp_solver->ext_forces.push_back(new BendingForce(m_intfc));
 
     Drag::setTolerance(m_intfc->table->rect_grid.h[0]*0.5);
     Drag::setThickness(0.001);
@@ -167,7 +167,7 @@ void Folder3d::doFolding(
 	
 	recordData(t,movie->out_dir);
 
-	cd_solver->resolveCollision();
+	//cd_solver->resolveCollision();
 
 	t = t + dt;
 	if (movie->isMovieTime(t))

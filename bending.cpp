@@ -24,30 +24,15 @@ void BendingForce::computeExternalForce()
 		    POINT *p3 = Point_of_tri(tri)[(i+2)%3];
 
 		    sorted(p1) = NO;
-		    if (Boundary_point(p2) && Boundary_point(p3)) {
-			continue;
-		    }
 
                     TRI* n_tri = Tri_on_side(tri, (i+1)%3);
+		    if (Vertex_of_point(n_tri, p2) == ERROR || 
+			Vertex_of_point(n_tri, p3) == ERROR)
+			continue;
                     calculateBendingForce3d2003(p1, tri, n_tri);
                     //calculateBendingForce3d2006(p1, tri, n_tri);
                 }
             }
-	    surf_tri_loop(*surf, tri)
-	    {
-		for (int i = 0; i < 3; ++i)
-		{
-		    POINT* p = Point_of_tri(tri)[i];
-		    if (sorted(p)) continue;
-		    sorted(p) = YES;
-		    TRI** tris;
-		    int nt = I_FirstRingTrisAroundPoint(p, tri, &tris);
-		    if (nt == 0)
-			clean_up(ERROR);
-		    for (int j = 0; j < 3; ++j)
-		        p->force[j] /= nt;
-		}
-	    }
         }
 }       /* setBendingForce3d */
 
@@ -97,7 +82,7 @@ void BendingForce::calculateBendingForce3d2003(
             u3[i] = Dot3d(x14, E) * N1[i] + Dot3d(x24, E) * N2[i];
             u4[i] = -Dot3d(x13, E) * N1[i] - Dot3d(x23, E) * N2[i];
         }
-        double bend_stiff = 0.001;
+        double bend_stiff = 0.045;
         double coeff = bend_stiff * sqr(E_mag) / (N1_mag + N2_mag);
         if (Dot3d(n1, n2) > 1.0 + 1.0e-10)
         {
@@ -122,9 +107,9 @@ void BendingForce::calculateBendingForce3d2003(
         if (Dot3d(tmp, E) < 0)
             sine_half_theta *= -1.0;
         coeff *= sine_half_theta;
-        double bend_damp = 0.0;
+        double bend_damp = 0;
         double dtheta = 0.0;
-        dtheta = Dot3d(u1, p1->vel) + Dot3d(u2, p1->vel) +
+        dtheta = Dot3d(u1, p1->vel) + Dot3d(u2, p2->vel) +
                  Dot3d(u3, p3->vel) + Dot3d(u4, p4->vel);
         if (fabs(dtheta) < 1.0e-10) dtheta = 0.0;
         if (dtheta > 0.0)
@@ -137,7 +122,9 @@ void BendingForce::calculateBendingForce3d2003(
             printf("dtheta = %20.14f\n", dtheta);
             clean_up(0);
         }
+
         coeff += -bend_damp * E_mag * dtheta;
+
         for (int i = 0; i < 3; ++i)
         {
             // each tri_pair will be calculated twice
@@ -196,7 +183,7 @@ void BendingForce::calculateBendingForce3d2006(
         h1 = sqrt(Dot3d(x13, x13) - h1 * h1);
         h2 = fabs(Dot3d(x23, E) / E_mag);
         h2 = sqrt(Dot3d(x23, x23) - h2 * h2);
-        double bend_stiff = 1.0;
+        double bend_stiff = 0.1;
         double lambda = 2.0*(h1 + h2)*E_mag*bend_stiff / (3.0*h1*h2*h1*h2);
         for (int i = 0; i < 3; ++i)
         {
