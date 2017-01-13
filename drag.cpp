@@ -420,14 +420,14 @@ void CloseUmbrellaDrag::preprocess(std::vector<SpringVertex*>& pts) {
 	SpringVertex* sv = pts[i];
     	double *p = sv->getCoords();
     	double len = distance_between(p,spinOrig,3);
-    	if (!isPointInBall(p,spinOrig,EPS)) 
+    	if (!isPointInBall(p,spinOrig, 1.1*getTolerance())) 
 	{
             theta = (p[1] > spinOrig[1]) ? acos((p[0]-spinOrig[0])/len) :
 				       acos((p[0]-spinOrig[0])/len) + M_PI;
 	    double theta_l = floor(theta/d_theta)*d_theta;
 	    double theta_r = ceil(theta/d_theta)*d_theta;
 	    double dist = std::min(len*fabs(sin(theta-theta_l)),len*fabs(sin(theta-theta_r)));
-	    if (dist < 1e-5) 
+	    if (fabs(dist) < 1.1*getTolerance()) 
 	    {
 	        sv->point_type = ROTATE_POINT;
 	        sv->setRegistered();
