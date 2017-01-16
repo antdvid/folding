@@ -44,11 +44,13 @@ int main(int argc, char** argv)
 	//adding folding plan from file
 	FILE* infile = fopen(InName(&front), "r");
 	char mesg[256];
+	std::string inname(in_name); 
+
 	CursorAfterString(infile,"Enter file path of folding plan:");
         fscanf(infile,"%s",mesg);
 	printf("%s\n", mesg);
 	folder->addDragsFromFile(mesg);
-
+	folder->setInputFile(inname);
 	//set folding movie
 	folder->setupMovie("fold_movie", OutName(&front), 0.05);
 
@@ -57,7 +59,12 @@ int main(int argc, char** argv)
         //folder->setOdeScheme(SpringSolver::EXPLICIT);
 
 	//set spring parameters: k, lambda, m
-	folder->setSpringParameters(800, 1.0, 0.01);
+	//default value
+	folder->setSpringParameters(800, 1.0, 0.001);
+        //get parameter value from file
+        //if fail will use default value
+	folder->setSpringParaFromFile(in_name);
+        
 
 	//start to fold
 	folder->doFolding();

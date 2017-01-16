@@ -2,7 +2,49 @@
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
+#include <set>
+#include <fstream>
+#include <sstream>
+#include <cstdlib>
 #include "bending.h"
+
+void BendingForce::getParaFromFile(const char* inname)
+{
+        std::ifstream fin(inname); 
+	std::string line; 
+	
+	if (!fin.is_open())
+	{
+	    std::cerr << "Can't open file!\n"; 
+	    exit(EXIT_FAILURE); 
+	}
+	while (getline(fin, line))
+	{
+	    if (line.find("bend stiffness") != std::string::npos)
+	    {
+		std::istringstream ss(line); 
+		std::string temp; 
+
+		while (temp.back() != ':')
+		    ss >> temp; 
+		ss >> getBendStiff(); 
+		std::cout << "bending stiffness: " 
+			<< getBendStiff() << std::endl; 
+	    }
+  	    else if (line.find("bend damping") != std::string::npos)
+	    {
+		std::istringstream ss(line);
+                std::string temp;
+
+                while (temp.back() != ':')
+                    ss >> temp;
+                ss >> getBendDamp();
+		std::cout << "bending damping: " 
+			<< getBendDamp() << std::endl; 
+	    }
+	    else continue; 
+	}
+}
 
 double* BendingForce::getExternalForce(SpringVertex* sv) 
 {
@@ -28,11 +70,17 @@ void BendingForce::computeExternalForce()
 		    POINT *p3 = Point_of_tri(tri)[(i+2)%3];
 
 		    sorted(p1) = NO;
+                    TRI* n_tri = Tri_on_side(tri, (i+1)%3);
 		    if (Boundary_point(p2) && Boundary_point(p3)) {
-			continue;
+                    std::set<POINT*> pointset; 
+		    pointset.insert(Point_of_tri(n_tri)[0]); 
+		    pointset.insert(Point_of_tri(n_tri)[1]); 
+		    pointset.insert(Point_of_tri(n_tri)[2]); 
+		    if (pointset.find(p2) == pointset.end() ||
+			pointset.find(p3) == pointset.end())
+		        continue; 
 		    }
 
-                    TRI* n_tri = Tri_on_side(tri, (i+1)%3);
                     calculateBendingForce3d2003(p1, tri, n_tri);
                     //calculateBendingForce3d2006(p1, tri, n_tri);
                 }
@@ -124,7 +172,7 @@ void BendingForce::calculateBendingForce3d2003(
 	std::transform(N2, N2 + 3, u2, 
 	        std::bind1st(std::multiplies<double>(), E_mag));
 
-        double bend_stiff = 0.1;
+	double bend_stiff = getBendStiff();
         double coeff = bend_stiff * sqr(E_mag) / (N1_mag + N2_mag);
 
         if (Dot3d(n1, n2) > 1.0 + 1.0e-10)
@@ -173,13 +221,28 @@ void BendingForce::calculateBendingForce3d2003(
         if (Dot3d(tmp, E) < 0)
             sine_half_theta *= -1.0;
         coeff *= sine_half_theta;
-
-        double bend_damp = 0.001;
+	
+	double bend_damp = getBendDamp(); 
         double dtheta = 0.0;
 
         dtheta = Dot3d(u1, p1->vel) + Dot3d(u2, p2->vel) +
                  Dot3d(u3, p3->vel) + Dot3d(u4, p4->vel);
         if (fabs(dtheta) < 1.0e-10) dtheta = 0.0;
+// used for debugging        
+//	double sum[3] = {0.0};
+
+//	for (int i = 0; i < 3; i++) 
+//	     sum[i] = u1[i] + u2[i] + u3[i] + u4[i]; 
+//	int summ = Mag3d(sum); 
+//	if (summ > 1.0e-6)
+//	{
+//	    std::cout << "u vector is too large\n"; 
+//	    std::cout << "sum is: " << sum[0] << ' ' << sum[1] 
+//		<< ' ' << sum[2];
+//	    std::cout << "p1 is: " << Coords(p1)[0] << ' ' 
+//		<< Coords(p1)[1] << ' ' << Coords(p1)[2] << std::endl;    
+//	}
+        
 
 // used for debugging
 //      if (dtheta > 0.0)
@@ -196,19 +259,19 @@ void BendingForce::calculateBendingForce3d2003(
 
         // each tri_pair will be calculated twice
         std::transform(u1, u1 + 3, tmp, 
-		std::bind1st(std::multiplies<double>(), coeff * 0.5)); 
+		std::bind1st(std::multiplies<double>(), coeff)); 
 	std::transform(p1->force, p1->force + 3, tmp, 
 		p1->force, std::plus<double>());
 	std::transform(u2, u2 + 3, tmp, 
-                std::bind1st(std::multiplies<double>(), coeff * 0.5));
+                std::bind1st(std::multiplies<double>(), coeff));
         std::transform(p2->force, p2->force + 3, tmp, 
                 p2->force, std::plus<double>());
         std::transform(u3, u3 + 3, tmp, 
-                std::bind1st(std::multiplies<double>(), coeff * 0.5));
+                std::bind1st(std::multiplies<double>(), coeff));
         std::transform(p3->force, p3->force + 3, tmp, 
                 p3->force, std::plus<double>());
 	std::transform(u4, u4 + 3, tmp, 
-                std::bind1st(std::multiplies<double>(), coeff * 0.5));
+                std::bind1st(std::multiplies<double>(), coeff));
         std::transform(p4->force, p4->force + 3, tmp, 
                 p4->force, std::plus<double>());
 }       /* calculateBendingForce3d */
@@ -261,8 +324,10 @@ void BendingForce::calculateBendingForce3d2006(
         h1 = sqrt(Dot3d(x13, x13) - h1 * h1);
         h2 = fabs(Dot3d(x23, E) / E_mag);
         h2 = sqrt(Dot3d(x23, x23) - h2 * h2);
-        double bend_stiff = 1.0;
+
+	double bend_stiff = getBendStiff(); 
         double lambda = 2.0*(h1 + h2)*E_mag*bend_stiff / (3.0*h1*h2*h1*h2);
+
         for (int i = 0; i < 3; ++i)
         {
             p1->force[i] += -lambda * a1 * R[i] * 0.5;

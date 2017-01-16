@@ -56,7 +56,7 @@ void Folder::addDragsFromFile(std::string fname) {
                 addDrag(Drag::dragFactory(info));
                 info.clear();
         }
-        else if (temp == "Foldingplan")
+        else if (temp == "foldingplan")
         {
             ss >> info.id();
             while (ss >> tmp)
@@ -81,6 +81,50 @@ void Folder::setSpringParameters(double k, double lambda, double m) {
     spring_params.m = m;
 }
 
+void Folder::setSpringParaFromFile(const char* inname)
+{
+    std::ifstream fin(inname);
+    std::string line; 
+
+    while (getline(fin, line))
+    {
+	if (line.find("fabric spring constant") != std::string::npos)
+	{
+	    std::istringstream ss(line);
+            std::string temp;
+	
+	    while (temp.back() != ':')
+	        ss >> temp; 
+	    ss >> spring_params.k; 
+            std::cout << "fabric spring constant: " 
+			<< spring_params.k << std::endl; 
+	}
+	else if (line.find("fabric friction constant") != std::string::npos)
+	{
+	    std::istringstream ss(line);
+	    std::string temp;
+
+            while (temp.back() != ':')
+	        ss >> temp;
+            ss >> spring_params.lambda;
+	    std::cout << "fabric friction constant: " 
+			<< spring_params.lambda << std::endl; 
+	}
+	else if (line.find("fabric point mass") != std::string::npos)
+        {
+            std::istringstream ss(line);
+	    std::string temp; 
+
+            while (temp.back() != ':')
+	        ss >> temp;
+            ss >> spring_params.m;
+	    std::cout << "fabric point mass: " 
+			<< spring_params.m << std::endl; 
+        }
+    }
+     
+}
+
 void Folder3d::doFolding() {
     SpringSolver* sp_solver = SpringSolver::createSpringSolver(
 						getOdeScheme()); 
@@ -98,8 +142,15 @@ void Folder3d::doFolding() {
     if (getSpringParams().k == 0 || getSpringParams().m == 0)
 	throw std::invalid_argument("tensile stiffness and mass cannot zero");
     sp_solver->setParameters(getSpringParams());
-    sp_solver->ext_forces.push_back(new BendingForce(m_intfc));
+    
+    //default bend coefficient and bend damping coefficient is 
+    //0.01 and 0.0
+    BendingForce* btemp = new BendingForce(m_intfc); 
+    std::string temp(getInputFile()); 
 
+    btemp->getParaFromFile(temp.c_str()); 
+    sp_solver->ext_forces.push_back(btemp);
+    
     Drag::setTolerance(m_intfc->table->rect_grid.h[0]*0.5);
     Drag::setThickness(0.001);
 
