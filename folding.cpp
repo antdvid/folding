@@ -81,7 +81,7 @@ void Folder::setSpringParameters(double k, double lambda, double m) {
     spring_params.m = m;
 }
 
-void Folder::setSpringParaFromFile(const char* inname)
+void Folder::setParaFromFile(const char* inname)
 {
     std::ifstream fin(inname);
     std::string line; 
@@ -121,8 +121,17 @@ void Folder::setSpringParaFromFile(const char* inname)
 	    std::cout << "fabric point mass: " 
 			<< spring_params.m << std::endl; 
         }
+	else if (line.find("frame step size: ") != std::string::npos)
+        {
+	    std::istringstream ss(line); 
+	    std::string temp; 
+
+	    while (temp.back() != ':') 
+	        ss >> temp; 
+	    ss >> max_dt; 
+            std::cout << "frame step size: " << max_dt << std::endl; 
+        }
     }
-     
 }
 
 void Folder3d::doFolding() {
@@ -213,12 +222,13 @@ void Folder3d::doFolding(
 	if (t+dt > drag->m_t) 
 	    dt = drag->m_t-t;
 	
-	if (fabs(t - 3.0) < EPS)
-	    check_force(sp_solver);
 	cd_solver->recordOriginPosition();
 	cd_solver->setTimeStepSize(dt);
 
     	sp_solver->solve(dt);
+        // only update vel for line drag
+        if (t > 0.5)
+            drag->updateVel(sp_solver->getSpringMesh(), t); 
 	
 	recordData(t,movie->out_dir);
 
