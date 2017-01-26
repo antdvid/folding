@@ -63,7 +63,7 @@ int main(int argc, char** argv)
 	folder->setSpringParameters(800, 1.0, 0.001);
         //get parameter value from file
         //if fail will use default value
-	folder->setSpringParaFromFile(in_name);
+	folder->setParaFromFile(in_name);
         
 
 	//start to fold
