@@ -4,6 +4,7 @@ const double EPS = 1e-15;
 static void spinToAxis(double c[], double dir[], double theta, double p[]);
 static bool isPointInBall(double p[], double c[], double r);
 static double Dot3d(const double*,const double*);
+static void Cross3d(const double*, const double*, double*);
 static double Mag3d(const double*);
 double Drag::m_thickness = 0.001;
 double Drag::m_tol = 0.001;
@@ -51,6 +52,28 @@ PLANE::PLANE(const double*p, const double* v)
     {
 	nor[i] = dir[i]/v_m;
     }
+}
+
+LINE::LINE(const double* p1, const double* p2)
+{
+    std::copy(p1, p1 + 3, pOnLine1); 
+    std::copy(p2, p2 + 3, pOnLine2); 
+}
+
+// calculate the shortest distance from a point to a line
+double LINE::distance(double* p)
+{
+    double p21[3], p10[3];
+
+    std::transform(pOnLine2, pOnLine2 + 3, pOnLine1, p21, 
+		std::minus<double>());
+    std::transform(pOnLine1, pOnLine1 + 3, p, p10, std::minus<double>());
+	
+    double dtemp[3]; 
+    
+    Cross3d(p21, p10, dtemp); 
+
+    return Mag3d(dtemp) / Mag3d(p21);     
 }
 
 static double distance_between(const double p1[], 
@@ -130,7 +153,7 @@ Drag* Drag::dragFactory(const Drag::Info& info) {
     return NULL;
 }
 
-static void spinToAxis(double cen[], double dir[], double theta, double p[])
+void Drag::spinToAxis(double* cen, double* dir, double theta, double* p)
 {
     double a,b,c,u,v,w,x,y,z;
     //normalize dir
@@ -218,6 +241,116 @@ PointDrag::PointDrag(
 
     if (c)
         std::copy(c,c+3,cent);
+}
+
+//Line drag
+void LineDrag::preprocess(std::vector<SpringVertex*>& pts)
+{
+    if (!first) return ; 
+    first = false; 
+    for (size_t i = 0; i < pts.size(); i++)
+    {
+	 SpringVertex* sv = pts[i]; 
+         double *p = sv->getCoords(); 
+	 
+	 if (dragLine->distance(p) < 1.1 * getTolerance())
+         {
+	     sv->point_type = TRANS_DPOINT; 
+  	     sv->setRegistered(); 
+         }
+         else if (controlLine1->distance(p) < 1.1 * getTolerance())
+	 {
+	     sv->point_type = TRANS_CPOINT1; 
+	     sv->setRegistered(); 
+	 }
+	 else if (controlLine2->distance(p) < 1.1 * getTolerance())
+	 {
+	     sv->point_type = TRANS_CPOINT2;
+             sv->setRegistered();
+	 }
+	 else 
+	 {
+	     sv->point_type = FREE_POINT; 
+	     sv->unsetRegistered(); 
+	 }
+    }
+}
+
+void LineDrag::setVel(SpringVertex* sv) 
+{
+    if (sv->point_type >= TRANS_DPOINT)
+    {
+	if (m_dt < EPS)
+            std::cout << "Warning: m_dt = " << m_dt
+                      << " is too small. "
+                      << "Have you called setTimeStepSize() before using it?"
+                      << std::endl;
+    }
+    if (sv->point_type == TRANS_DPOINT)
+        std::copy(veld, veld + 3, sv->getVel());
+    else if (sv->point_type == TRANS_CPOINT1)
+	std::copy(velc1, velc1 + 3, sv->getVel());
+    else if (sv->point_type == TRANS_CPOINT2)
+	std::copy(velc2, velc2 + 3, sv->getVel());
+    else if (sv->point_type == STATIC_POINT)
+        std::fill(sv->getVel(), sv->getVel() + 3, 0);  
+    else
+	return; 
+}
+
+void LineDrag::updateVel(std::vector<SpringVertex*>& pts, double t)
+{
+    for (int i = 0; i < pts.size(); i++)
+    { 
+	 double deltav[3] = {0.0}; 
+
+	 if (pts[i]->point_type == TRANS_CPOINT1)
+	 {
+    	     std::transform(accelc1, accelc1 + 3, deltav, 
+		   	bind1st(std::multiplies<double>(), m_dt));
+    	     std::transform(velc1, velc1 + 3, deltav, velc1, 
+			std::plus<double>()); 
+         }
+	 else if (pts[i]->point_type == TRANS_CPOINT2) 
+	 {
+	     std::transform(accelc2, accelc2 + 3, deltav,
+                        bind1st(std::multiplies<double>(), m_dt));
+	     std::transform(velc2, velc2 + 3, deltav, velc2, 
+                        std::plus<double>());
+	 }
+    }
+}
+
+void LineDrag::setAccel(SpringVertex* sv) 
+{
+}
+
+Drag* LineDrag::clone(const Drag::Info& info) 
+{
+    if (info.data().size() != 34)
+    {
+	std::cout << "LineDrag should have "
+                  << "34 parameters, "
+                  << "but " << info.data().size()
+                  << " parameters are given"
+                  << std::endl;
+        return NULL;
+    }
+    else
+    {
+	LineDrag* ld = new LineDrag(); 
+	const double* it = &(info.data().front());
+        ld->dragLine = new LINE(it, it + 3); 
+        std::copy(it + 6, it + 9, ld->veld);
+        ld->controlLine1 = new LINE(it + 9, it + 12);
+        std::copy(it + 15, it + 18, ld->velc1);
+        std::copy(it + 18, it + 21, ld->accelc1);
+        ld->controlLine2 = new LINE(it + 21, it + 24);
+        std::copy(it + 27, it + 30, ld->velc2); 
+	std::copy(it + 30, it + 33, ld->accelc2);
+	ld->m_t = *(it + 33); 
+	return ld; 
+    }
 }
 
 //Dravity drag
@@ -402,6 +535,87 @@ Drag* FoldDrag::clone(const Drag::Info& info) {
     }
 }
 
+//ZFoldDrag
+void ZFoldDrag::preprocess(std::vector<SpringVertex*>& pts)
+{
+    if (!first) return; 
+    first = false; 
+
+    for (int i = 0; i < pts.size(); i++)
+    {
+	 SpringVertex* sv = pts[i]; 
+	 double *p = sv->getCoords(); 
+
+         if (static_plane1->isBack(p))
+         {
+	     sv->point_type = STATIC_POINT; 
+	     sv->setRegistered(); 
+	 }
+	 else if (static_plane1->isFront(p) && 
+		static_plane2->isBack(p))
+	 {
+	     sv->point_type = ROTATE_POINT; 
+	     sv->setRegistered(); 
+	 }
+	 else 
+ 	 {
+	     sv->point_type = FREE_POINT; 
+	     sv->unsetRegistered(); 	
+	 }
+    }
+}
+
+void ZFoldDrag::setVel(SpringVertex* sv)
+{
+    if (sv->point_type == STATIC_POINT)
+	std::fill(sv->getVel(), sv->getVel() + 3, 0.0);
+    else if (sv->point_type == ROTATE_POINT)
+    {
+	if (m_dt < EPS)
+            std::cout << "Warning: m_dt = " << m_dt
+                      << " is too small. "
+                      << "Have you called setTimeStepSize() before using it?"
+                      << std::endl;
+	double *p = sv->getCoords(); 
+	double p1[3]; 
+	double theta = angVel * m_dt; 
+
+	std::copy(p, p + 3, p1); 
+	spinToAxis(spinOrig, spinDir, theta, p1);
+	std::transform(p1, p1 + 3, p, sv->getVel(), std::minus<double>()); 
+	std::transform(sv->getVel(), sv->getVel() + 3, sv->getVel(), 
+		bind2nd(std::divides<double>(), m_dt)); 
+    }
+    else return; 
+}
+
+void ZFoldDrag::setAccel(SpringVertex* sv) {}
+
+Drag* ZFoldDrag::clone(const Drag::Info& info)
+{
+    if (info.data().size() != 20) 
+    {
+	std::cout << "Fold drag should have "
+                  << "20 parameters, "
+                  << "but " << info.data().size()
+                  << " parameters are given"
+                  << std::endl;
+        return NULL;
+    }
+    else
+    {
+	ZFoldDrag *zfd = new ZFoldDrag(); 
+	const double *it = &(info.data().front()); 
+	std::copy(it, it + 3, zfd->spinOrig); 
+	std::copy(it + 3, it + 6, zfd->spinDir);
+	zfd->angVel = *(it + 6); 
+	zfd->static_plane1 =  new PLANE (it + 7, it + 10); 
+	zfd->static_plane2 = new PLANE (it + 13, it + 16); 
+	zfd->m_t = *(it + 19); 
+	return zfd; 
+    }
+}
+
 static bool isPointInBall(double p[], double c[], double r) {
     double v[3];
     std::transform(p,p+3,c,v,std::minus<double>());
@@ -420,16 +634,15 @@ void CloseUmbrellaDrag::preprocess(std::vector<SpringVertex*>& pts) {
 	SpringVertex* sv = pts[i];
     	double *p = sv->getCoords();
     	double len = distance_between(p,spinOrig,3);
-	double eps = 0.02; 
 
-    	if (!isPointInBall(p,spinOrig,eps)) 
+    	if (!isPointInBall(p,spinOrig,1.1*getTolerance())) 
 	{
             theta = (p[1] > spinOrig[1]) ? acos((p[0]-spinOrig[0])/len) :
 				       acos((p[0]-spinOrig[0])/len) + M_PI;
 	    double theta_l = floor(theta/d_theta)*d_theta;
 	    double theta_r = ceil(theta/d_theta)*d_theta;
 	    double dist = std::min(len*fabs(sin(theta-theta_l)),len*fabs(sin(theta-theta_r)));
-	    if (dist < eps) 
+	    if (fabs(dist) < 1.1*getTolerance()) 
 	    {
 	        sv->point_type = ROTATE_POINT;
 	        sv->setRegistered();
