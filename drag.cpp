@@ -1,7 +1,6 @@
 #include "drag.h"
 #include <iostream>
 const double EPS = 1e-15;
-static void spinToAxis(double c[], double dir[], double theta, double p[]);
 static bool isPointInBall(double p[], double c[], double r);
 static double Dot3d(const double*,const double*);
 static void Cross3d(const double*, const double*, double*);
@@ -300,7 +299,7 @@ void LineDrag::setVel(SpringVertex* sv)
 
 void LineDrag::updateVel(std::vector<SpringVertex*>& pts, double t)
 {
-    for (int i = 0; i < pts.size(); i++)
+    for (size_t i = 0; i < pts.size(); i++)
     { 
 	 double deltav[3] = {0.0}; 
 
@@ -387,10 +386,10 @@ void MultiplePointDrag::preprocess(std::vector<SpringVertex*>& pts) {
     first = false;
     for (size_t i = 0; i < pts.size(); ++i)
     {
-	int id = getDragPointNumber(pts[i]->getCoords());
-    	if (id != -1)
+	int iid = getDragPointNumber(pts[i]->getCoords());
+    	if (iid != -1)
 	{
-	    pts[i]->point_type = id;
+	    pts[i]->point_type = iid;
 	    pts[i]->setRegistered();
 	}
 	else
@@ -541,7 +540,7 @@ void ZFoldDrag::preprocess(std::vector<SpringVertex*>& pts)
     if (!first) return; 
     first = false; 
 
-    for (int i = 0; i < pts.size(); i++)
+    for (size_t i = 0; i < pts.size(); i++)
     {
 	 SpringVertex* sv = pts[i]; 
 	 double *p = sv->getCoords(); 

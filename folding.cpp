@@ -81,9 +81,9 @@ void Folder::setSpringParameters(double k, double lambda, double m) {
     spring_params.m = m;
 }
 
-void Folder::setParaFromFile(const char* inname)
+void Folder::setParaFromFile(const char* s)
 {
-    std::ifstream fin(inname);
+    std::ifstream fin(s);
     std::string line; 
 
     while (getline(fin, line))
@@ -249,9 +249,9 @@ void Folder3d::check_force(SpringSolver* sp_solver)
     std::unordered_map<POINT*, SpringVertex*> pToVer; 
     int i;  
 
-    for (i = 0; i < pts.size(); i++)
+    for (size_t j = 0; j < pts.size(); j++)
     {
-	 pToVer[(POINT*)(pts[i]->org_vtx)] = pts[i]; 
+	 pToVer[(POINT*)(pts[i]->org_vtx)] = pts[j]; 
     }
 
     SURFACE ** surf; 
@@ -295,7 +295,7 @@ void Folder3d::check_force(SpringSolver* sp_solver)
 		 int count = 0;
 		 std::vector<size_t> indexNb = vp->index_nb;  
 		 
-		 for (int j = 0; j < indexNb.size(); j++)
+		 for (size_t j = 0; j < indexNb.size(); j++)
 		 {
 		      if (pts[indexNb[j]]->isRegistered())
 			  count++; 
