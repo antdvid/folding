@@ -251,7 +251,7 @@ void Folder3d::check_force(SpringSolver* sp_solver)
 
     for (size_t j = 0; j < pts.size(); j++)
     {
-	 pToVer[(POINT*)(pts[i]->org_vtx)] = pts[j]; 
+	 pToVer[(POINT*)(pts[j]->org_vtx)] = pts[j]; 
     }
 
     SURFACE ** surf; 
