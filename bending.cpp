@@ -8,6 +8,8 @@
 #include <cstdlib>
 #include "bending.h"
 
+static void DebugShow(const double&);
+
 void BendingForce::getParaFromFile(const char* inname)
 {
         std::ifstream fin(inname); 
@@ -85,27 +87,10 @@ void BendingForce::computeExternalForce()
                     //calculateBendingForce3d2006(p1, tri, n_tri);
                 }
             }
-
-//	    surf_tri_loop(*surf, tri)
-//	    {
-//		for (int i = 0; i < 3; ++i)
-//		{
-//		    POINT* p = Point_of_tri(tri)[i];
-//		    if (sorted(p)) continue;
-//		    sorted(p) = YES;
-//		    TRI** tris;
-//		    int nt = I_FirstRingTrisAroundPoint(p, tri, &tris);
-//		    if (nt == 0)
-//			clean_up(ERROR);
-//		    for (int j = 0; j < 3; ++j)
-//		        p->force[j] /= nt;
-//		}
-//	    }
-
         }
 }       /* setBendingForce3d */
 
-void DebugShow(const double & sva)
+static void DebugShow(const double & sva)
 {
 	std::cout << std::setw(20) << sva << " ";
 }
