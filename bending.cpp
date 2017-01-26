@@ -8,7 +8,8 @@
 #include <cstdlib>
 #include "bending.h"
 
-static void DebugShow(const double &);
+static void DebugShow(const double&);
+
 void BendingForce::getParaFromFile(const char* inname)
 {
         std::ifstream fin(inname); 
