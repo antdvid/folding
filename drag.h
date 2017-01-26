@@ -22,6 +22,7 @@ public:
     //set velocity for each spring vertex
     //according to point type
     virtual void setVel(SpringVertex*) = 0;
+    virtual void updateVel(std::vector<SpringVertex*>& pts, double t) {}
 
     //set acceleration for each spring vertex
     //according to point type
@@ -32,6 +33,7 @@ public:
 
     void setTimeStepSize(double dt) {m_dt = dt;}
     double getTimeStepSize() {return m_dt;}
+    void spinToAxis(double*, double*, double, double*); 
     
     static void setThickness(double t){m_thickness = t;}
     static double getThickness() {return m_thickness;}
@@ -62,7 +64,8 @@ public:
     static Drag* dragFactory(const Info &);
     virtual Drag* clone(const Info &) = 0;
 protected:
-    enum {FREE_POINT,ROTATE_POINT,STATIC_POINT};
+    enum {FREE_POINT,ROTATE_POINT, STATIC_POINT, TRANS_DPOINT, 
+		TRANS_CPOINT1, TRANS_CPOINT2};
     double m_dt;
     bool first = true;
     Drag(double t) : m_t(t) {}
@@ -80,6 +83,16 @@ public:
     bool isBack(double* p);
     double distance(double* p);
     PLANE(const double*, const double*);
+};
+
+class LINE
+{
+public:
+    double pOnLine1[3]; 
+    double pOnLine2[3];
+
+    LINE(const double*, const double*);
+    double distance(double* p); 
 };
 
 class PointDrag : public Drag {
@@ -105,6 +118,24 @@ public:
     std::string id() {return "GravityDrag";}
     GravityDrag(const double c[], const double r, const double a[], double t);
     GravityDrag(){}
+};
+
+class LineDrag : public Drag {
+public:
+    LINE* dragLine;
+    LINE* controlLine1; 
+    LINE* controlLine2; 
+    double veld[3];
+    double velc1[3];
+    double accelc1[3];
+    double velc2[3];
+    double accelc2[3];
+    void preprocess(std::vector<SpringVertex*>&); 
+    void setVel(SpringVertex*); 
+    void updateVel(std::vector<SpringVertex*>&, double); 
+    void setAccel(SpringVertex*);  
+    Drag* clone(const Drag::Info&); 
+    std::string id() { return "LineDrag"; }
 };
 
 class GravityBoxDrag : public Drag 
@@ -157,6 +188,21 @@ public:
     virtual Drag* clone(const Drag::Info&);
     FoldDrag() {}
 };
+
+class ZFoldDrag: public Drag {
+    PLANE* static_plane1;
+    PLANE* static_plane2;  
+    double angVel; 
+    double spinOrig[3]; 
+    double spinDir[3]; 
+public:
+    void preprocess(std::vector<SpringVertex*>&);
+    void setVel(SpringVertex*);
+    void setAccel(SpringVertex*); 
+    std::string id() { return "ZFoldDrag"; }
+    virtual Drag* clone(const Drag::Info&); 
+    ZFoldDrag() {}
+}; 
 
 class CloseUmbrellaDrag : public Drag {
     int num_tuck_line;

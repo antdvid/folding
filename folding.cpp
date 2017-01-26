@@ -2,6 +2,9 @@
 #include "spring_solver.h"
 #include <fstream>
 #include <sstream>
+#include <unordered_map>
+#include <iomanip>
+#include <cstdlib>
 
 static void setCollisionFreePoints3d(INTERFACE*, Drag*);
 
@@ -53,7 +56,7 @@ void Folder::addDragsFromFile(std::string fname) {
                 addDrag(Drag::dragFactory(info));
                 info.clear();
         }
-        else if (temp == "Foldingplan")
+        else if (temp == "foldingplan")
         {
             ss >> info.id();
             while (ss >> tmp)
@@ -78,6 +81,59 @@ void Folder::setSpringParameters(double k, double lambda, double m) {
     spring_params.m = m;
 }
 
+void Folder::setParaFromFile(const char* s)
+{
+    std::ifstream fin(s);
+    std::string line; 
+
+    while (getline(fin, line))
+    {
+	if (line.find("fabric spring constant") != std::string::npos)
+	{
+	    std::istringstream ss(line);
+            std::string temp;
+	
+	    while (temp.back() != ':')
+	        ss >> temp; 
+	    ss >> spring_params.k; 
+            std::cout << "fabric spring constant: " 
+			<< spring_params.k << std::endl; 
+	}
+	else if (line.find("fabric friction constant") != std::string::npos)
+	{
+	    std::istringstream ss(line);
+	    std::string temp;
+
+            while (temp.back() != ':')
+	        ss >> temp;
+            ss >> spring_params.lambda;
+	    std::cout << "fabric friction constant: " 
+			<< spring_params.lambda << std::endl; 
+	}
+	else if (line.find("fabric point mass") != std::string::npos)
+        {
+            std::istringstream ss(line);
+	    std::string temp; 
+
+            while (temp.back() != ':')
+	        ss >> temp;
+            ss >> spring_params.m;
+	    std::cout << "fabric point mass: " 
+			<< spring_params.m << std::endl; 
+        }
+	else if (line.find("frame step size: ") != std::string::npos)
+        {
+	    std::istringstream ss(line); 
+	    std::string temp; 
+
+	    while (temp.back() != ':') 
+	        ss >> temp; 
+	    ss >> max_dt; 
+            std::cout << "frame step size: " << max_dt << std::endl; 
+        }
+    }
+}
+
 void Folder3d::doFolding() {
     SpringSolver* sp_solver = SpringSolver::createSpringSolver(
 						getOdeScheme()); 
@@ -96,8 +152,15 @@ void Folder3d::doFolding() {
     if (getSpringParams().k == 0 || getSpringParams().m == 0)
 	throw std::invalid_argument("tensile stiffness and mass cannot zero");
     sp_solver->setParameters(getSpringParams());
-    //sp_solver->ext_forces.push_back(new BendingForce(m_intfc));
+    
+    //default bend coefficient and bend damping coefficient is 
+    //0.01 and 0.0
+    BendingForce* btemp = new BendingForce(m_intfc); 
+    std::string temp(getInputFile()); 
 
+    btemp->getParaFromFile(temp.c_str()); 
+    sp_solver->ext_forces.push_back(btemp);
+    
     Drag::setTolerance(m_intfc->table->rect_grid.h[0]*0.5);
     Drag::setThickness(0.001);
 
@@ -159,11 +222,14 @@ void Folder3d::doFolding(
 	printf("--------------------------------\n");
 	if (t+dt > drag->m_t) 
 	    dt = drag->m_t-t;
-
+	
 	cd_solver->recordOriginPosition();
 	cd_solver->setTimeStepSize(dt);
 
     	sp_solver->solve(dt);
+        // only update vel for line drag
+        if (t > 0.5)
+            drag->updateVel(sp_solver->getSpringMesh(), t); 
 	
 	recordData(t,movie->out_dir);
 
@@ -173,6 +239,82 @@ void Folder3d::doFolding(
 	if (movie->isMovieTime(t))
 	    movie->recordMovieFrame();
     }
+}
+
+// friend function to Folder 
+// used to check force for the unregistered point whose other two points on 
+// the same triangle are registered points
+void Folder3d::check_force(SpringSolver* sp_solver)
+{
+    std::vector<SpringVertex*> pts = sp_solver->getSpringMesh(); 
+    std::unordered_map<POINT*, SpringVertex*> pToVer; 
+    int i;  
+
+    for (size_t j = 0; j < pts.size(); j++)
+    {
+	 pToVer[(POINT*)(pts[j]->org_vtx)] = pts[j]; 
+    }
+
+    SURFACE ** surf; 
+    std::ofstream fout1("forceregis.txt"); 
+    std::ofstream fout2("force.txt");
+
+    if (!fout1.is_open() || !fout2.is_open())
+    {
+	std::cerr << "Open file error!\n"; 
+	exit(EXIT_FAILURE);
+    }
+    
+    fout1 << std::fixed << std::setprecision(14); 
+    fout2 << std::fixed << std::setprecision(14);
+
+    intfc_surface_loop(m_intfc, surf)
+    { 
+	if (wave_type(*surf) != ELASTIC_BOUNDARY) continue; 
+	if (is_bdry(*surf)) continue; 
+
+        TRI *tri;
+	     
+	surf_tri_loop(*surf, tri)
+	    for (i = 0; i < 3; i++)
+		 sorted(Point_of_tri(tri)[i]) = NO; 
+	surf_tri_loop(*surf, tri)
+	{
+	    for (i = 0; i < 3; i++)
+	    {
+		 POINT *p = Point_of_tri(tri)[i];
+                 SpringVertex *vp = pToVer[p];
+ 		 
+		 if (sorted(p) || vp->isRegistered()) continue;
+                 fout2 << "Point is: " << std::setw(20) << Coords(p)[0]
+                        << std::setw(20) << Coords(p)[1] << std::setw(20)
+                        << Coords(p)[2] << std::endl;
+                     fout2 << "Force is: " << std::setw(20) << p->force[0]
+                        << std::setw(20) << p->force[1] << std::setw(20)
+                        << p->force[2] << std::endl;
+		 
+		 int count = 0;
+		 std::vector<size_t> indexNb = vp->index_nb;  
+		 
+		 for (size_t j = 0; j < indexNb.size(); j++)
+		 {
+		      if (pts[indexNb[j]]->isRegistered())
+			  count++; 
+		 }
+		 if (count == 2)
+		 {
+		     fout1 << "Point is: " << std::setw(20) << Coords(p)[0] 
+			<< std::setw(20) << Coords(p)[1] << std::setw(20) 
+			<< Coords(p)[2] << std::endl; 
+		     fout1 << "Force is: " << std::setw(20) << p->force[0]
+			<< std::setw(20) << p->force[1] << std::setw(20) 
+			<< p->force[2] << std::endl; 
+		 }
+	    }
+	}
+    }
+    fout1.close(); 
+    fout2.close();
 }
 
 void Folder3d::appendDataToFile(double x, double y, std::string fname)

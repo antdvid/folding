@@ -1,11 +1,13 @@
 #ifndef FOLDING_H
 #define FOLDING_H
+
 #include<vector>
 #include <set>
 #include "../Collision/collid.h"
 #include "drag.h"
 #include "spring_solver.h"
 #include "bending.h"
+#include <string>
 
 class Folder {
 public:
@@ -20,6 +22,9 @@ public:
     void setSpringParameters(double, double, double);
     SpringSolver::SpringParameter& getSpringParams(){return spring_params;}
     SpringSolver::ODE_SCHEME getOdeScheme() {return ode_scheme;}
+    void setParaFromFile(const char*);
+    void setInputFile(std::string& s) { inname = s; }
+    std::string& getInputFile() { return inname; }
 protected:
     Folder(){}
     double getThickness(){return m_thickness;}
@@ -29,6 +34,7 @@ protected:
 private:
     static double max_dt;
     static double m_thickness;
+    std::string inname; 
     SpringSolver::ODE_SCHEME ode_scheme = SpringSolver::EXPLICIT;
 };
 
@@ -40,6 +46,7 @@ public:
     void doFolding();
     Folder3d(){}
     void setupMovie(std::string, std::string, double);
+    void check_force(SpringSolver*);
 private:
     void doFolding(Drag*,SpringSolver*,CollisionSolver*);
     void straightenStrings();
