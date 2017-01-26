@@ -8,9 +8,11 @@ std::vector<Drag*> Drag::prototypes;
 class DragProtoInit {
     
     PointDrag pd;
+    LineDrag ld; 
     GravityDrag gd;
     MultiplePointDrag md;
     FoldDrag sd;
+    ZFoldDrag zsd; 
     CloseUmbrellaDrag cud;
     RelaxDrag rd;
     GravityBoxDrag gbd;
@@ -18,9 +20,11 @@ class DragProtoInit {
     SeparateDrag spd;
     DragProtoInit() {
 	Drag::prototypes.push_back(&pd);
+	Drag::prototypes.push_back(&ld); 
 	Drag::prototypes.push_back(&gd);
 	Drag::prototypes.push_back(&md);
 	Drag::prototypes.push_back(&sd);
+        Drag::prototypes.push_back(&zsd);
 	Drag::prototypes.push_back(&cud);
 	Drag::prototypes.push_back(&rd);
 	Drag::prototypes.push_back(&gbd);
