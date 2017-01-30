@@ -3,13 +3,17 @@
 #include "folding.h"
 #include "spring_solver.h"
 #include <fenv.h>
+#include <fstream>
+#include <cstdlib>
 
 //test module for folding algorithm
 static void initTestModule(Front*,SURFACE*&);
-static void initAirbag(Front*,FILE*,SURFACE*&);
-static void initFabric(Front*,FILE*,SURFACE*&);
-void initFabricCircle(Front* front, FILE* infile, SURFACE* &surf);
-void initFabricRectangle(Front* front, FILE* infile, SURFACE* &surf);
+static void initAirbag(Front*,std::ifstream&,SURFACE*&);
+static void initFabric(Front*,std::ifstream&,SURFACE*&);
+void initFabricCircle(Front* front, std::ifstream&, SURFACE* &surf);
+void initFabricRectangle(Front* front, std::ifstream&, SURFACE* &surf);
+bool findAndLocate(std::ifstream&, const char*);
+bool getString(std::ifstream&, const char*);
 
 int main(int argc, char** argv)
 {
@@ -42,15 +46,23 @@ int main(int argc, char** argv)
 	Folder* folder = new Folder3d(front.interf,surf);
 	
 	//adding folding plan from file
-	FILE* infile = fopen(InName(&front), "r");
-	char mesg[256];
 	std::string inname(in_name); 
+	std::ifstream fin(in_name); 
+	std::string mesg; 
 
-	CursorAfterString(infile,"Enter file path of folding plan:");
-        fscanf(infile,"%s",mesg);
-	printf("%s\n", mesg);
+        if (!fin.is_open())
+	{
+	    std::cerr << "Can't open file " << inname << std::endl; 
+	    clean_up(ERROR); 
+	}
+
+        if (!findAndLocate(fin, "Enter file path of folding plan:"))
+	    clean_up(ERROR);
+        fin >> mesg; 
+	std::cout << mesg << std::endl; 
 	folder->addDragsFromFile(mesg);
 	folder->setInputFile(inname);
+        fin.close(); 
 	//set folding movie
 	folder->setupMovie("fold_movie", OutName(&front), 0.05);
 
@@ -76,18 +88,20 @@ int main(int argc, char** argv)
 }
 
 void initTestModule(Front* front, SURFACE* &surf) {
-	FILE *infile = fopen(InName(front),"r");
+        std::ifstream fin(InName(front)); 
 	char mesg[256];
-	CursorAfterString(infile,"Enter problem type:");
-	fscanf(infile,"%s",mesg);
+	if (!findAndLocate(fin,"Enter problem type:"))
+	    clean_up(ERROR);
+        fin >> mesg; 
+	std::cout << mesg << std::endl; 
 	std::string prob_type(mesg);
 	if (prob_type == "Airbag")
-	    initAirbag(front,infile,surf);
+	    initAirbag(front,fin,surf);
 	else if (prob_type == "Fabric")
-	    initFabric(front,infile,surf);
+	    initFabric(front,fin,surf);
 	else
 	    printf("Unknown type = %s\n",mesg);
-	fclose(infile);
+        fin.close(); 
 	//set Original Length
         TRI* t;
         surf_tri_loop(surf, t)
@@ -100,15 +114,19 @@ void initTestModule(Front* front, SURFACE* &surf) {
         }
 }
 
-void initAirbag(Front* front, FILE* infile, SURFACE* &surf) {
+void initAirbag(Front* front, std::ifstream& fin, SURFACE* &surf) {
 	double center[3], radius[3];
-	CursorAfterString(infile,"Enter center of airbag:");
-	fscanf(infile,"%lf %lf %lf",center,center+1,center+2);
-	printf("%f %f %f\n",center[0],center[1],center[2]);
+	if (!findAndLocate(fin,"Enter center of airbag:"))
+	    clean_up(ERROR); 
+	fin >> center[0] >> center[1] >> center[2]; 
+	std::cout << center[0] << " " << center[1] << " " 
+		<< center[2] << std::endl; 
 
-	CursorAfterString(infile,"Enter radius of airbag:");
-	fscanf(infile,"%lf %lf %lf",radius,radius+1,radius+2);
-	printf("%f %f %f\n",radius[0],radius[1],radius[2]);
+	if (!findAndLocate(fin, "Enter radius of airbag:"))
+	    clean_up(ERROR); 
+	fin >> radius[0] >> radius[1] >> radius[2]; 
+	std::cout << radius[0] << " " << radius[1] << " " 
+		<< radius[2] << std::endl; 
 
 	COMPONENT neg_comp = 2;
 	COMPONENT pos_comp = 3;
@@ -121,28 +139,20 @@ void initAirbag(Front* front, FILE* infile, SURFACE* &surf) {
 }
 
 #include <iFluid.h>
-#include <airfoil.h>
-void initFabric(Front* front, FILE* infile, SURFACE* &surf) {
-	char mesg[256];
-	std::string shape = "Circle";
-	if (CursorAfterStringOpt(infile,"Enter fabric shape:"))
-	{
-            fscanf(infile,"%s",mesg);
-            shape = std::string (mesg);
-	    printf("%s\n", mesg);
-	}
+void initFabric(Front* front, std::ifstream& fin, SURFACE* &surf) {
+	std::string shape("Circle");
 
-	if( "Circle" == shape)
-	    initFabricCircle(front, infile, surf);
+	if (!findAndLocate(fin,"Enter fabric shape:"))
+ 	    clean_up(ERROR);
+        fin >> shape; 
+	std::cout << shape << std::endl; 
+	if ("Circle" == shape)
+	    initFabricCircle(front, fin, surf);
 	else if ("Rectangle" == shape)
-	    initFabricRectangle(front, infile, surf);
+	    initFabricRectangle(front, fin, surf);
+/*
 	else if ("CGAL" == shape)
-	{
-	    AF_PARAMS af_params;
-	    af_params.gore_len_fac = 1.0;
-	    front->extra2 = (POINTER)&af_params;
-	    CgalCanopySurface(infile, front, &surf);
-	}
+	    CgalRectangular(infile, front, &surf);  */
 	else
 	{
 	    std::cout << "Unknown shape " << shape << std::endl;
@@ -150,16 +160,16 @@ void initFabric(Front* front, FILE* infile, SURFACE* &surf) {
 	}
 }
 
-void initFabricCircle(Front* front, FILE* infile, SURFACE* &surf)
+void initFabricCircle(Front* front, std::ifstream& fin, SURFACE* &surf)
 {
 	static PLANE_PARAMS plane_params;
         static LEVEL_FUNC_PACK level_func_pack;
-        CursorAfterString(infile,"Enter the height of the plane:");
-        fscanf(infile,"%lf",&plane_params.P[2]);
-        (void) printf("%f\n",plane_params.P[2]);
+        if (!findAndLocate(fin,"Enter the height of the plane:"))
+	    clean_up(ERROR);
+	fin >> plane_params.P[2];
+	std::cout << plane_params.P[2] << std::endl; 
         plane_params.N[0] = plane_params.N[1] = 0.0;
         plane_params.N[2] = 1.0;
-        
 
         static CIRCLE_PARAMS circle_constr_params;
 
@@ -173,15 +183,15 @@ void initFabricCircle(Front* front, FILE* infile, SURFACE* &surf)
         level_func_pack.constr_params = (POINTER)&circle_constr_params;
         level_func_pack.constr_func = circle_constr_func;
         level_func_pack.num_mono_hs = 1;
-        CursorAfterString(infile,"Enter circle center:");
-        fscanf(infile,"%lf %lf",&circle_constr_params.cen[0],
-                                &circle_constr_params.cen[1]);
-        (void) printf("%f %f\n",circle_constr_params.cen[0],
-                                circle_constr_params.cen[1]);
-        CursorAfterString(infile,"Enter circle radius:");
-        fscanf(infile,"%lf",&circle_constr_params.R);
-        (void) printf("%f\n",circle_constr_params.R);
-
+        if (!findAndLocate(fin,"Enter circle center:"))
+	    clean_up(ERROR); 
+	fin >> circle_constr_params.cen[0] >> circle_constr_params.cen[1]; 
+	std::cout << circle_constr_params.cen[0] << " " 
+		<< circle_constr_params.cen[1] << std::endl; 
+        if (!findAndLocate(fin,"Enter circle radius:"))
+	    clean_up(ERROR); 
+	fin >> circle_constr_params.R; 
+	std::cout << circle_constr_params.R << std::endl; 
         FT_InitIntfc(front,&level_func_pack);
         SURFACE** s;
         intfc_surface_loop(front->interf,s) {
@@ -192,13 +202,14 @@ void initFabricCircle(Front* front, FILE* infile, SURFACE* &surf)
         }
 }
 
-void initFabricRectangle(Front* front, FILE* infile, SURFACE* &surf)
+void initFabricRectangle(Front* front, std::ifstream& fin, SURFACE* &surf)
 {
 	static PLANE_PARAMS plane_params;
         static LEVEL_FUNC_PACK level_func_pack;
-        CursorAfterString(infile,"Enter the height of the plane:");
-        fscanf(infile,"%lf",&plane_params.P[2]);
-        (void) printf("%f\n",plane_params.P[2]);
+        if (!findAndLocate(fin,"Enter the height of the plane:"))
+	    clean_up(ERROR);
+	fin >> plane_params.P[2]; 
+	std::cout << plane_params.P[2] << std::endl; 
         plane_params.N[0] = plane_params.N[1] = 0.0;
         plane_params.N[2] = 1.0;
         
@@ -216,21 +227,18 @@ void initFabricRectangle(Front* front, FILE* infile, SURFACE* &surf)
         level_func_pack.constr_params = (POINTER)&rect_constr_params;
         level_func_pack.constr_func = rect_constr_func;
         level_func_pack.num_mono_hs = 1;
-        CursorAfterString(infile,"Enter lower boundary of plane:");
-        fscanf(infile,"%lf %lf %lf",&rect_constr_params.L[0],
-                                &rect_constr_params.L[1],
-				&rect_constr_params.L[2]);
-        (void) printf("%f %f %f\n",rect_constr_params.L[0],
-                                rect_constr_params.L[1],
-				rect_constr_params.L[2]);
-        CursorAfterString(infile,"Enter upper boundary of plane:");
-        fscanf(infile,"%lf %lf %lf",&rect_constr_params.U[0],
-                                &rect_constr_params.U[1],
-				&rect_constr_params.U[2]);
-        (void) printf("%f %f %f\n",rect_constr_params.U[0],
-                                rect_constr_params.U[1],
-				rect_constr_params.U[2]);
-
+        if (!findAndLocate(fin,"Enter lower boundary of plane:"))
+	    clean_up(ERROR); 
+	fin >> rect_constr_params.L[0] >> rect_constr_params.L[1] 
+			>> rect_constr_params.L[2]; 
+	std::cout << rect_constr_params.L[0] << " " << rect_constr_params.L[1] 
+		<< " " << rect_constr_params.L[2] << std::endl; 
+        if (!findAndLocate(fin,"Enter upper boundary of plane:"))
+	    clean_up(ERROR); 
+	fin >> rect_constr_params.U[0] >> rect_constr_params.U[1] 
+		>> rect_constr_params.U[2];
+	std::cout << rect_constr_params.U[0] << " " << rect_constr_params.U[1]
+		<< " " << rect_constr_params.U[2] << std::endl;
         FT_InitIntfc(front,&level_func_pack);
         SURFACE** s;
         intfc_surface_loop(front->interf,s) {
@@ -239,4 +247,42 @@ void initFabricRectangle(Front* front, FILE* infile, SURFACE* &surf)
                 break;
             }
         }
+}
+
+bool findAndLocate(std::ifstream& fin, const char* mesg)
+{
+    std::cout << mesg << std::endl;
+    if (!getString(fin, mesg))
+    {
+        fin.seekg(0);
+        if (!getString(fin, mesg))
+        {
+            std::cerr << "Can't find string " << mesg << " in file!\n";
+            return false;
+        }
+    }
+    return true;
+}
+
+bool getString(std::ifstream& fin, const char* mesg)
+{
+    std::streampos position;
+    std::string line;
+
+    position = fin.tellg();
+    while (getline(fin, line))
+    {
+        if (line.find(mesg) != std::string::npos)
+        {
+            char ch;
+            fin.seekg(-1, std::ios_base::cur);
+            while (fin.get(ch) && ch != ':')
+                fin.seekg(-2, std::ios_base::cur);
+            fin.seekg(1, std::ios_base::cur);
+            return true;
+        }
+    }
+    fin.clear();
+    fin.seekg(position);
+    return false;
 }

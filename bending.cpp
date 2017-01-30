@@ -9,43 +9,27 @@
 #include "bending.h"
 
 static void DebugShow(const double&);
+bool findAndLocate(std::ifstream&, const char*);
+bool getString(std::ifstream&, const char*);
 
 void BendingForce::getParaFromFile(const char* inname)
 {
         std::ifstream fin(inname); 
-	std::string line; 
 	
 	if (!fin.is_open())
 	{
 	    std::cerr << "Can't open file!\n"; 
-	    exit(EXIT_FAILURE); 
+	    clean_up(ERROR);
 	}
-	while (getline(fin, line))
-	{
-	    if (line.find("bend stiffness") != std::string::npos)
-	    {
-		std::istringstream ss(line); 
-		std::string temp; 
+	if (!findAndLocate(fin, "Enter fabric bend stiffness constant:"))
+	    clean_up(ERROR);
+	fin >> getBendStiff(); 
+	std::cout << getBendStiff() << std::endl; 
+	if (!findAndLocate(fin, "Enter fabric bend damping constant:"))
+            clean_up(ERROR);
+        fin >> getBendDamp();
+        std::cout << getBendDamp() << std::endl;
 
-		while (temp.back() != ':')
-		    ss >> temp; 
-		ss >> getBendStiff(); 
-		std::cout << "bending stiffness: " 
-			<< getBendStiff() << std::endl; 
-	    }
-  	    else if (line.find("bend damping") != std::string::npos)
-	    {
-		std::istringstream ss(line);
-                std::string temp;
-
-                while (temp.back() != ':')
-                    ss >> temp;
-                ss >> getBendDamp();
-		std::cout << "bending damping: " 
-			<< getBendDamp() << std::endl; 
-	    }
-	    else continue; 
-	}
 	fin.close(); 
 }
 
