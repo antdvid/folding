@@ -132,6 +132,7 @@ void Folder::setParaFromFile(const char* s)
             std::cout << "frame step size: " << max_dt << std::endl; 
         }
     }
+    fin.close(); 
 }
 
 void Folder3d::doFolding() {

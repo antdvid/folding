@@ -46,6 +46,7 @@ void BendingForce::getParaFromFile(const char* inname)
 	    }
 	    else continue; 
 	}
+	fin.close(); 
 }
 
 double* BendingForce::getExternalForce(SpringVertex* sv) 
