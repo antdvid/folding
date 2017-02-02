@@ -10,15 +10,16 @@ Lower boundary in 2-th dimension: DIRICHLET_BOUNDARY
 Upper boundary in 2-th dimension: DIRICHLET_BOUNDARY
 
 Enter problem type: Fabric
-Enter the height of the plane: 0.8
-Enter circle center: 0.5 0.5
-Enter circle radius: 0.35
-Enter file path of folding plan: fdrop 
-Enter fabric spring constant: 5000
-Enter fabric friction constant: 1.0 
-Enter fabric point mass: 0.001
+Enter fabric shape: Rectangle
+Enter the height of the plane: 0.5
+Enter lower boundary of plane: 0.5 0.4 0
+Enter upper boundary of plane: 0.8 0.6 1
+Enter file path of folding plan: froll
+Enter fabric spring constant: 200 
+Enter fabric friction constant: 0.2
+Enter fabric point mass: 0.01
 Enter fabric bend stiffness constant: 0.0
 Enter fabric bend damping constant: 0.00
 
-Enter yes for debugging: yes 
+Ente yes for debugging: yes 
 Enter the debugging string: folding

@@ -135,6 +135,17 @@ static double pointToLine(
 }
 
 //Drag
+bool Drag::validateData(const Drag::Info& info) {
+    if (info.data().size() != this->dataSize()) 
+    {
+	std::cout << "Warning: "<< info.id() << " needs " 
+	<< this->dataSize() << " parameters, but " << info.data().size() 
+	<< " are given!" << std::endl;
+	return false;
+    }
+    return true;
+}
+
 Drag* Drag::dragFactory(const Drag::Info& info) {
     for (size_t i = 0; i < prototypes.size(); ++i) {
 	if (prototypes[i]->id() == info.id()) 
@@ -986,3 +997,71 @@ void SeparateDrag::setVel(SpringVertex* sv)
 	vel[i] = (p1[i] - p[i])/m_dt;    
 }
 
+//Roll Drag
+Drag* RollDrag::clone(const Drag::Info& info)
+{
+    const std::vector<double> & v = info.data();
+    if (!this->validateData(info))
+	return NULL;
+
+    RollDrag* drag = new RollDrag();
+    for (size_t i = 0; i < 3; ++i)
+    {   
+        drag->spin_center[i] = v[i];
+        drag->spin_dir[i] = v[i+3];
+        drag->mov_center[i] = v[i+6];
+        drag->mov_dir[i] = v[i+9];
+    }
+    drag->ang_vel = v[12];
+    drag->m_t = v.back();
+
+    double dist = pointToLine(drag->mov_center, 
+			     drag->spin_center, drag->spin_dir);
+    drag->num_layers = 3;
+    drag->spacing = dist/(drag->num_layers*M_PI*2.0);
+    return drag;
+}
+
+void RollDrag::preprocess(std::vector<SpringVertex*>& pts)
+{
+    double bound = spacing * 2.0 * M_PI * num_layers;
+    for(SpringVertex* sv : pts)
+    {
+	if (pointToLine(sv->getCoords(), spin_center, spin_dir) < bound)
+	{
+	     sv->setRegistered();
+	     sv->point_type = ROTATE_POINT;
+	}
+	else
+	{
+	    sv->unsetRegistered();
+	    sv->point_type = FREE_POINT;
+	}
+    }
+}
+
+void RollDrag::setVel(SpringVertex* sv)
+{
+    if (sv->point_type != ROTATE_POINT)
+    {
+	return;
+    }
+    double* p0 = sv->getCoords();
+    double p1[3];
+    std::copy(p0,p0+3,p1);
+    double d_theta = ang_vel * m_dt;
+    double v[3] = {0};
+    spinToAxis(spin_center,spin_dir,d_theta,p1);
+    double r = pointToLine(p1, spin_center, spin_dir, v);
+    r = r - spacing * fabs(d_theta);
+    
+    double v_mag = Mag3d(v);
+    for (size_t i = 0; i < 3; ++i)
+    {
+	p1[i] = p1[i] - v[i] + r * v[i]/v_mag;
+    }
+    double *vel = sv->getVel();
+    for (size_t i = 0; i < 3; ++i) {
+        vel[i] = (p1[i] - p0[i])/m_dt;
+    }
+}

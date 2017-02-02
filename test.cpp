@@ -60,7 +60,7 @@ int main(int argc, char** argv)
 
 	//set spring parameters: k, lambda, m
 	//default value
-	folder->setSpringParameters(800, 1.0, 0.001);
+	folder->setSpringParameters(800, 0.04, 0.001);
         //get parameter value from file
         //if fail will use default value
 	folder->setParaFromFile(in_name);

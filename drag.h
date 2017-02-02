@@ -63,7 +63,9 @@ public:
     static std::vector<Drag*> prototypes;
     static Drag* dragFactory(const Info &);
     virtual Drag* clone(const Info &) = 0;
+    virtual size_t dataSize() {return 0;}
 protected:
+    bool validateData(const Drag::Info&);
     enum {FREE_POINT,ROTATE_POINT, STATIC_POINT, TRANS_DPOINT, 
 		TRANS_CPOINT1, TRANS_CPOINT2};
     double m_dt;
@@ -256,4 +258,22 @@ public:
     void setAccel(SpringVertex* sv){}
 };
 
+class RollDrag: public Drag {
+    double spin_center[3];
+    double spin_dir[3];
+
+    double mov_center[3];
+    double mov_dir[3];
+
+    int num_layers;
+    double ang_vel;
+    double spacing;
+public:
+    void preprocess(std::vector<SpringVertex*>&);
+    std::string id() {return "RollDrag";}
+    Drag* clone(const Drag::Info&);
+    size_t dataSize() {return 14;}
+    void setVel(SpringVertex* sv);
+    void setAccel(SpringVertex* sv){}
+};
 #endif
