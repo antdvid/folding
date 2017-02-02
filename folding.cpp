@@ -7,6 +7,8 @@
 #include <cstdlib>
 
 static void setCollisionFreePoints3d(INTERFACE*, Drag*);
+bool findAndLocate(std::ifstream&, const char*);
+bool getString(std::ifstream&, const char*);
 
 double Folder::m_thickness = 0.001;
 double Folder::max_dt = 0.01;
@@ -84,54 +86,44 @@ void Folder::setSpringParameters(double k, double lambda, double m) {
 void Folder::setParaFromFile(const char* s)
 {
     std::ifstream fin(s);
-    std::string line; 
 
-    while (getline(fin, line))
+    if (!fin.is_open())
     {
-	if (line.find("fabric spring constant") != std::string::npos)
-	{
-	    std::istringstream ss(line);
-            std::string temp;
-	
-	    while (temp.back() != ':')
-	        ss >> temp; 
-	    ss >> spring_params.k; 
-            std::cout << "fabric spring constant: " 
-			<< spring_params.k << std::endl; 
-	}
-	else if (line.find("fabric friction constant") != std::string::npos)
-	{
-	    std::istringstream ss(line);
-	    std::string temp;
-
-            while (temp.back() != ':')
-	        ss >> temp;
-            ss >> spring_params.lambda;
-	    std::cout << "fabric friction constant: " 
-			<< spring_params.lambda << std::endl; 
-	}
-	else if (line.find("fabric point mass") != std::string::npos)
-        {
-            std::istringstream ss(line);
-	    std::string temp; 
-
-            while (temp.back() != ':')
-	        ss >> temp;
-            ss >> spring_params.m;
-	    std::cout << "fabric point mass: " 
-			<< spring_params.m << std::endl; 
-        }
-	else if (line.find("frame step size: ") != std::string::npos)
-        {
-	    std::istringstream ss(line); 
-	    std::string temp; 
-
-	    while (temp.back() != ':') 
-	        ss >> temp; 
-	    ss >> max_dt; 
-            std::cout << "frame step size: " << max_dt << std::endl; 
-        }
+	std::cerr << "Can't open file " << s << std::endl; 
+	clean_up(ERROR);
     }
+    // we may use the default value
+    // so it's ok not find these strings
+    if (findAndLocate(fin, "fabric spring constant:"))
+    {
+	fin >> spring_params.k; 
+    	std::cout << spring_params.k << std::endl; 
+    }
+    else
+	std::cout << "use default value!\n"; 
+    if (findAndLocate(fin, "fabric friction constant:"))
+    {
+	fin >> spring_params.lambda;
+    	std::cout << spring_params.lambda << std::endl;
+    }
+    else
+        std::cout << "use default value!\n";
+    if (findAndLocate(fin, "fabric point mass:"))
+    {
+	fin >> spring_params.m;
+        std::cout << spring_params.m << std::endl;
+    }
+    else
+        std::cout << "use default value!\n";
+    if (findAndLocate(fin, "frame step size:"))
+    {
+	fin >> max_dt;
+        std::cout << max_dt << std::endl;
+    }
+    else
+        std::cout << "use default value!\n";
+
+    fin.close(); 
 }
 
 void Folder3d::doFolding() {
