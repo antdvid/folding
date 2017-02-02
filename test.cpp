@@ -1,4 +1,4 @@
-#include "cgalclass.h"
+#include "cgal.h"
 #include <FronTier.h>
 #include <string>
 #include "folding.h"
@@ -139,8 +139,6 @@ void initAirbag(Front* front, std::ifstream& fin, SURFACE* &surf) {
                             &surf);
 }
 
-#include <iFluid.h>
-
 void initFabric(Front* front, std::ifstream& fin, SURFACE* &surf) {
 	std::string shape("Circle");
 
@@ -272,13 +270,13 @@ void initFabricRectangle(Front* front, std::ifstream& fin, SURFACE* &surf)
 
 bool findAndLocate(std::ifstream& fin, const char* mesg)
 {
-    std::cout << mesg << std::endl;
+    std::cout << mesg << " ";
     if (!getString(fin, mesg))
     {
         fin.seekg(0);
         if (!getString(fin, mesg))
         {
-            std::cerr << "Can't find string " << mesg << " in file!\n";
+            std::cout << "Can't find string " << mesg << " in file!\n";
             return false;
         }
     }

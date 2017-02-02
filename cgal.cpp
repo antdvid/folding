@@ -1,4 +1,4 @@
-#include "cgalclass.h"
+#include "cgal.h"
 
 cgalSurf::cgalSurf(INTERFACE* intfc, SURFACE** surf) :  
 		c_intfc(intfc), c_surf(surf) 
@@ -87,12 +87,12 @@ void cgalSurf::setMonoCompBdryZeroLength()
 
 void cgalSurf::cgalGenSurf()
 {
-        COMPONENT neg_comp, pos_comp;
+    COMPONENT neg_comp, pos_comp;
     SURFACE *newsurf;
     INTERFACE* sav_intfc = current_interface();
     CDT::Finite_vertices_iterator vit;
     CDT::Finite_faces_iterator fit;
-    int i;
+    size_t i;
 
     neg_comp = pos_comp = c_intfc->default_comp;
 
@@ -104,7 +104,7 @@ void cgalSurf::cgalGenSurf()
 
     int num_vtx = cdt.number_of_vertices();
     double* vertex = new double [3*num_vtx];
-    std::vector<int> index;
+    std::vector<size_t> index;
 
     for (i = 0, vit = cdt.finite_vertices_begin();
                 vit != cdt.finite_vertices_end(); vit++, i++)
@@ -119,7 +119,7 @@ void cgalSurf::cgalGenSurf()
     std::vector<POINT*> points;
     int num_tris = 0;
 
-    for (i = 0; i < num_vtx; i++)
+    for (i = 0; i < (size_t)num_vtx; i++)
     {
          points.push_back(Point(vertex+3*i));
          points.back()->num_tris = 0;
@@ -133,9 +133,9 @@ void cgalSurf::cgalGenSurf()
     for (i = 0, fit = cdt.finite_faces_begin();
                 fit != cdt.finite_faces_end(); fit++, i++)
     {
-         int i1 = index[fit->vertex(0)->info()];
-         int i2 = index[fit->vertex(1)->info()];
-         int i3 = index[fit->vertex(2)->info()];
+         size_t i1 = index[fit->vertex(0)->info()];
+         size_t i2 = index[fit->vertex(1)->info()];
+         size_t i3 = index[fit->vertex(2)->info()];
 
          tris[i] = make_tri(points[i1], points[i2], points[i3],
                         NULL, NULL, NULL, NO);
@@ -144,17 +144,17 @@ void cgalSurf::cgalGenSurf()
          points[i2]->num_tris++;
          points[i3]->num_tris++;
     }
-    c_intfc->point_tri_store = (TRI**)store(num_point_tris*sizeof(TRI*));
+    c_intfc->point_tri_store = (TRI**)store((size_t)num_point_tris*sizeof(TRI*));
 
     TRI** ptris = c_intfc->point_tri_store;
 
-    for (i = 0; i < num_vtx; i++)
+    for (i = 0; i < (size_t)num_vtx; i++)
     {
          points[i]->tris = ptris;
          ptris += points[i]->num_tris;
          points[i]->num_tris = 0;
     }
-    for (i = 0; i < num_tris; i++)
+    for (i = 0; i < (size_t)num_tris; i++)
     {
          if (i != 0)
          {
@@ -167,7 +167,7 @@ void cgalSurf::cgalGenSurf()
               p->tris[p->num_tris++] = tris[i];
          }
     }
-    for (i = 0; i < num_vtx; i++)
+    for (i = 0; i < (size_t)num_vtx; i++)
     {
          TRI** tritemp = points[i]->tris;
          int num_ptris = points[i]->num_tris;
@@ -324,7 +324,7 @@ void cgalCircleSurf::addCgalConst()
     }
     regConPoint.push_back(cen[0] + radius);
     regConPoint.push_back(cen[1]);
-    for (int i = 0; i < 2*num_reg_const; i += 2)
+    for (size_t i = 0; i < 2*(size_t)num_reg_const; i += 2)
     {
 	 v1 = cdt.insert(Cgal_Point(regConPoint[i], regConPoint[i+1]));
          v2 = cdt.insert(Cgal_Point(regConPoint[i+2], regConPoint[i+3])); 

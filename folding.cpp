@@ -18,6 +18,7 @@ void Folder::addDragsFromFile(std::string fname) {
     if (!ifs.is_open()) {
 	std::cout << "File \"" << fname << 
 	"\" doesn't exist" << std::endl;
+	return;
     }
 
     std::string line;
