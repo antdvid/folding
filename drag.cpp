@@ -1024,7 +1024,7 @@ Drag* RollDrag::clone(const Drag::Info& info)
 
 void RollDrag::preprocess(std::vector<SpringVertex*>& pts)
 {
-    double bound = spacing * 2.0 * M_PI * num_layers;
+    double bound = spacing * 2.0 * M_PI * num_layers + getTolerance();
     for(SpringVertex* sv : pts)
     {
 	if (pointToLine(sv->getCoords(), spin_center, spin_dir) < bound)

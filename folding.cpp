@@ -206,15 +206,16 @@ void Folder3d::doFolding(
 
     //call spring solver and collision solver
     //based on adaptive dt
-    static double t = 0;
+    double t0 = 0;	  //time control for one drag
+    static double t = 0;  //time control for whole folding process
     double dt = max_dt;
-    while (t < drag->m_t - MACH_EPS) {
+    while (t0 < drag->m_t - MACH_EPS) {
 	printf("--------------------------------\n");
 	printf("dt = %f, t = %f, total time = %f\n",
-		dt,t,drag->m_t);
+		dt,t0,drag->m_t);
 	printf("--------------------------------\n");
-	if (t+dt > drag->m_t) 
-	    dt = drag->m_t-t;
+	if (t0+dt > drag->m_t) 
+	    dt = drag->m_t-t0;
 	
 	cd_solver->recordOriginPosition();
 	cd_solver->setTimeStepSize(dt);
@@ -228,7 +229,8 @@ void Folder3d::doFolding(
 
 	//cd_solver->resolveCollision();
 
-	t = t + dt;
+	t0 = t0 + dt;
+	t  = t  + dt;
 	if (movie->isMovieTime(t))
 	    movie->recordMovieFrame();
     }

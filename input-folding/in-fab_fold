@@ -10,6 +10,7 @@ Lower boundary in 2-th dimension: DIRICHLET_BOUNDARY
 Upper boundary in 2-th dimension: DIRICHLET_BOUNDARY
 
 Enter problem type: Fabric
+Enter fabric shape: Circle
 Enter the height of the plane: 0.5
 Enter circle center: 0.5 0.5
 Enter circle radius: 0.35
