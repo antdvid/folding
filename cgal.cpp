@@ -1,4 +1,4 @@
-#include "cgalclass.h"
+#include "cgal.h"
 
 cgalSurf::cgalSurf(INTERFACE* intfc, SURFACE** surf) :  
 		c_intfc(intfc), c_surf(surf) 
@@ -87,7 +87,7 @@ void cgalSurf::setMonoCompBdryZeroLength()
 
 void cgalSurf::cgalGenSurf()
 {
-        COMPONENT neg_comp, pos_comp;
+    COMPONENT neg_comp, pos_comp;
     SURFACE *newsurf;
     INTERFACE* sav_intfc = current_interface();
     CDT::Finite_vertices_iterator vit;
@@ -104,7 +104,7 @@ void cgalSurf::cgalGenSurf()
 
     int num_vtx = cdt.number_of_vertices();
     double* vertex = new double [3*num_vtx];
-    std::vector<int> index;
+    std::vector<size_t> index;
 
     for (i = 0, vit = cdt.finite_vertices_begin();
                 vit != cdt.finite_vertices_end(); vit++, i++)
@@ -133,9 +133,9 @@ void cgalSurf::cgalGenSurf()
     for (i = 0, fit = cdt.finite_faces_begin();
                 fit != cdt.finite_faces_end(); fit++, i++)
     {
-         int i1 = index[fit->vertex(0)->info()];
-         int i2 = index[fit->vertex(1)->info()];
-         int i3 = index[fit->vertex(2)->info()];
+         size_t i1 = index[fit->vertex(0)->info()];
+         size_t i2 = index[fit->vertex(1)->info()];
+         size_t i3 = index[fit->vertex(2)->info()];
 
          tris[i] = make_tri(points[i1], points[i2], points[i3],
                         NULL, NULL, NULL, NO);
