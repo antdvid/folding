@@ -22,12 +22,14 @@ void BendingForce::getParaFromFile(const char* inname)
 	    clean_up(ERROR);
 	}
 	if (!findAndLocate(fin, "Enter fabric bend stiffness constant:"))
-	    clean_up(ERROR);
-	fin >> getBendStiff(); 
+            getBendStiff() = 0.0; 
+	else 
+	    fin >> getBendStiff(); 
 	std::cout << getBendStiff() << std::endl; 
 	if (!findAndLocate(fin, "Enter fabric bend damping constant:"))
-            clean_up(ERROR);
-        fin >> getBendDamp();
+            getBendDamp() = 0.0; 
+        else 
+	    fin >> getBendDamp();
         std::cout << getBendDamp() << std::endl;
 
 	fin.close(); 
