@@ -209,6 +209,7 @@ void Folder3d::doFolding(
     double t0 = 0; 
     static double t = 0;
     double dt = max_dt;
+    movie->recordMovieFrame();
     while (t0 < drag->m_t - MACH_EPS) {
 	printf("--------------------------------\n");
 	printf("dt = %f, t = %f, total time = %f\n",
@@ -234,6 +235,7 @@ void Folder3d::doFolding(
 	if (movie->isMovieTime(t))
 	    movie->recordMovieFrame();
     }
+    movie->recordMovieFrame();
 }
 
 // friend function to Folder 
