@@ -235,11 +235,16 @@ void cgalRectangleSurf::addCgalConst()
     cdt.insert_constraint(v3, v4);
     cdt.insert_constraint(v4, v1);
     // add extra constraint
-    for (size_t i = 0 ; i < extConPoint.size() - 2; i += 2)
+    if (extConPoint.size() == 0) 
+	return; 
+    else
     {
-	 v1 = cdt.insert(Cgal_Point(extConPoint[i], extConPoint[i+1]));
-         v2 = cdt.insert(Cgal_Point(extConPoint[i+2], extConPoint[i+3]));
-         cdt.insert_constraint(v1, v2); 
+	for (size_t i = 0 ; i < extConPoint.size() - 2; i += 2)
+    	{
+	     v1 = cdt.insert(Cgal_Point(extConPoint[i], extConPoint[i+1]));
+             v2 = cdt.insert(Cgal_Point(extConPoint[i+2], extConPoint[i+3]));
+             cdt.insert_constraint(v1, v2); 
+        }
     }
 }
 
