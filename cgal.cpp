@@ -235,9 +235,7 @@ void cgalRectangleSurf::addCgalConst()
     cdt.insert_constraint(v3, v4);
     cdt.insert_constraint(v4, v1);
     // add extra constraint
-    if (extConPoint.size() == 0)
-	return;
-    for (size_t i = 0 ; i < extConPoint.size() - 2; i += 2)
+    for (size_t i = 0 ; i < extConPoint.size(); i += 4)
     {
 	 v1 = cdt.insert(Cgal_Point(extConPoint[i], extConPoint[i+1]));
          v2 = cdt.insert(Cgal_Point(extConPoint[i+2], extConPoint[i+3]));
@@ -326,7 +324,7 @@ void cgalCircleSurf::addCgalConst()
     }
     regConPoint.push_back(cen[0] + radius);
     regConPoint.push_back(cen[1]);
-    for (size_t i = 0; i < 2*(size_t)num_reg_const; i += 2)
+    for (int i = 0; i < 2*num_reg_const; i += 2)
     {
 	 v1 = cdt.insert(Cgal_Point(regConPoint[i], regConPoint[i+1]));
          v2 = cdt.insert(Cgal_Point(regConPoint[i+2], regConPoint[i+3])); 
@@ -354,9 +352,7 @@ void cgalCircleSurf::addCgalConst()
 	      }
          }
     }
-    if (extConPoint.size() == 0)
-	return;
-    for (size_t i = 0; i < extConPoint.size() - 2; i += 2)
+    for (size_t i = 0; i < extConPoint.size(); i += 4)
     {
 	 v1 = cdt.insert(Cgal_Point(extConPoint[i], extConPoint[i+1]));
          v2 = cdt.insert(Cgal_Point(extConPoint[i+2], extConPoint[i+3]));      

@@ -270,7 +270,7 @@ void initFabricRectangle(Front* front, std::ifstream& fin, SURFACE* &surf)
 
 bool findAndLocate(std::ifstream& fin, const char* mesg)
 {
-    std::cout << mesg << " ";
+    std::cout << mesg << " "; 
     if (!getString(fin, mesg))
     {
         fin.seekg(0);

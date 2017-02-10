@@ -63,9 +63,9 @@ public:
     static std::vector<Drag*> prototypes;
     static Drag* dragFactory(const Info &);
     virtual Drag* clone(const Info &) = 0;
-    virtual size_t dataSize() {return 0;}
+    virtual size_t dataSize() { return 0; }
 protected:
-    bool validateData(const Drag::Info&);
+    bool validateData(const Drag::Info&); 
     enum {FREE_POINT,ROTATE_POINT, STATIC_POINT, TRANS_DPOINT, 
 		TRANS_CPOINT1, TRANS_CPOINT2};
     double m_dt;
@@ -109,6 +109,7 @@ public:
 
     virtual Drag* clone(const Drag::Info&);
     std::string id() {return "PointDrag";}
+    virtual size_t dataSize() {return 11;}
     PointDrag(const double c[], double r, const double v[], const double a[],  double t);
     PointDrag(){};
 };
@@ -118,12 +119,13 @@ public:
     void setAccel(SpringVertex*); 
     virtual Drag* clone(const Drag::Info&);
     std::string id() {return "GravityDrag";}
+    virtual size_t dataSize() {return 8;}
     GravityDrag(const double c[], const double r, const double a[], double t);
     GravityDrag(){}
 };
 
 class LineDrag : public Drag {
-public:
+protected :
     LINE* dragLine;
     LINE* controlLine1; 
     LINE* controlLine2; 
@@ -132,12 +134,19 @@ public:
     double accelc1[3];
     double velc2[3];
     double accelc2[3];
-    void preprocess(std::vector<SpringVertex*>&); 
-    void setVel(SpringVertex*); 
-    void updateVel(std::vector<SpringVertex*>&, double); 
-    void setAccel(SpringVertex*);  
-    Drag* clone(const Drag::Info&); 
-    std::string id() { return "LineDrag"; }
+    double accelStartTime1; // time for starting accelating motion 
+    double accelStartTime2; // time for starting accelating motion
+    double m_ct;  // current total time for this folding plan
+public :
+    LineDrag() { m_ct = 0.0; }
+    virtual void preprocess(std::vector<SpringVertex*>&); 
+    virtual void postprocess(std::vector<SpringVertex*>&);
+    virtual void setVel(SpringVertex*); 
+    virtual void setAccel(SpringVertex*);  
+    virtual Drag* clone(const Drag::Info&); 
+    virtual size_t dataSize() {return 36;}
+    virtual std::string id() { return "LineDrag"; }
+    void accumCurTime() { m_ct += m_dt; }
 };
 
 class GravityBoxDrag : public Drag 
@@ -151,6 +160,7 @@ public:
     void setAccel(SpringVertex*);
     Drag* clone(const Drag::Info&);
     std::string id() {return "GravityBoxDrag";}
+    virtual size_t dataSize() {return 10;}
     GravityBoxDrag(double t);
     GravityBoxDrag(){}
 };
@@ -188,21 +198,24 @@ public:
     void setAccel(SpringVertex*);
     std::string id() {return "FoldDrag";}
     virtual Drag* clone(const Drag::Info&);
+    virtual size_t dataSize() { return 14; }
     FoldDrag() {}
 };
 
 class ZFoldDrag: public Drag {
+private : 
     PLANE* static_plane1;
     PLANE* static_plane2;  
     double angVel; 
     double spinOrig[3]; 
     double spinDir[3]; 
-public:
-    void preprocess(std::vector<SpringVertex*>&);
-    void setVel(SpringVertex*);
-    void setAccel(SpringVertex*); 
-    std::string id() { return "ZFoldDrag"; }
+public :
+    virtual void preprocess(std::vector<SpringVertex*>&);
+    virtual void setVel(SpringVertex*);
+    virtual void setAccel(SpringVertex*); 
+    virtual std::string id() { return "ZFoldDrag"; }
     virtual Drag* clone(const Drag::Info&); 
+    virtual size_t dataSize() { return 20; }
     ZFoldDrag() {}
 }; 
 
@@ -217,6 +230,7 @@ public:
     Drag* clone(const Drag::Info&);
     void setVel(SpringVertex*);
     void setAccel(SpringVertex*){}
+    virtual size_t dataSize() { return 9; }
     CloseUmbrellaDrag() {}
 };
 
@@ -240,6 +254,7 @@ public:
     Drag* clone(const Drag::Info&);
     void setVel(SpringVertex* sv) {}
     void setAccel(SpringVertex* sv);
+    virtual size_t dataSize() { return 8; }
 };
 
 class SeparateDrag: public Drag {
@@ -256,7 +271,9 @@ public:
     Drag* clone(const Drag::Info&);
     void setVel(SpringVertex* sv);
     void setAccel(SpringVertex* sv){}
+    virtual size_t dataSize() { return 11; }
 };
+
 
 class RollDrag: public Drag {
     double spin_center[3];
@@ -272,7 +289,7 @@ public:
     void preprocess(std::vector<SpringVertex*>&);
     std::string id() {return "RollDrag";}
     Drag* clone(const Drag::Info&);
-    size_t dataSize() {return 14;}
+    virtual size_t dataSize() {return 14;}
     void setVel(SpringVertex* sv);
     void setAccel(SpringVertex* sv){}
 };

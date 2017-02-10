@@ -18,7 +18,7 @@ void Folder::addDragsFromFile(std::string fname) {
     if (!ifs.is_open()) {
 	std::cout << "File \"" << fname << 
 	"\" doesn't exist" << std::endl;
-	return;
+        return; 
     }
 
     std::string line;
@@ -206,9 +206,11 @@ void Folder3d::doFolding(
 
     //call spring solver and collision solver
     //based on adaptive dt
-    double t0 = 0;	  //time control for one drag
-    static double t = 0;  //time control for whole folding process
+    // t0 is the time control for one drag plan
+    double t0 = 0; 
+    static double t = 0;
     double dt = max_dt;
+    movie->recordMovieFrame();
     while (t0 < drag->m_t - MACH_EPS) {
 	printf("--------------------------------\n");
 	printf("dt = %f, t = %f, total time = %f\n",
@@ -227,13 +229,14 @@ void Folder3d::doFolding(
 	
 	recordData(t,movie->out_dir);
 
-	//cd_solver->resolveCollision();
+	cd_solver->resolveCollision();
 
-	t0 = t0 + dt;
-	t  = t  + dt;
+	t += dt;
+        t0 += dt; 
 	if (movie->isMovieTime(t))
 	    movie->recordMovieFrame();
     }
+    movie->recordMovieFrame();
 }
 
 // friend function to Folder 

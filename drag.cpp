@@ -191,14 +191,8 @@ void Drag::spinToAxis(double* cen, double* dir, double theta, double* p)
 
 // Point Drag
 Drag* PointDrag::clone(const Drag::Info& info) {
-    if (info.data().size() != 11) {
-	std::cout << "Point drag should have "
-	          << "11 parameters, " 
-		  << "but " << info.data().size() 
-		  << " parameters are given" 
-		  << std::endl; 
+    if (!validateData(info))
 	return NULL;
-    }
     else {
 	const std::vector<double>& v = info.data();
 	const double *it = &(v.front());
@@ -308,44 +302,14 @@ void LineDrag::setVel(SpringVertex* sv)
 	return; 
 }
 
-void LineDrag::updateVel(std::vector<SpringVertex*>& pts, double t)
-{
-    for (size_t i = 0; i < pts.size(); i++)
-    { 
-	 double deltav[3] = {0.0}; 
-
-	 if (pts[i]->point_type == TRANS_CPOINT1)
-	 {
-    	     std::transform(accelc1, accelc1 + 3, deltav, 
-		   	bind1st(std::multiplies<double>(), m_dt));
-    	     std::transform(velc1, velc1 + 3, deltav, velc1, 
-			std::plus<double>()); 
-         }
-	 else if (pts[i]->point_type == TRANS_CPOINT2) 
-	 {
-	     std::transform(accelc2, accelc2 + 3, deltav,
-                        bind1st(std::multiplies<double>(), m_dt));
-	     std::transform(velc2, velc2 + 3, deltav, velc2, 
-                        std::plus<double>());
-	 }
-    }
-}
-
 void LineDrag::setAccel(SpringVertex* sv) 
 {
 }
 
 Drag* LineDrag::clone(const Drag::Info& info) 
 {
-    if (info.data().size() != 34)
-    {
-	std::cout << "LineDrag should have "
-                  << "34 parameters, "
-                  << "but " << info.data().size()
-                  << " parameters are given"
-                  << std::endl;
+    if (!validateData(info))
         return NULL;
-    }
     else
     {
 	LineDrag* ld = new LineDrag(); 
@@ -355,11 +319,50 @@ Drag* LineDrag::clone(const Drag::Info& info)
         ld->controlLine1 = new LINE(it + 9, it + 12);
         std::copy(it + 15, it + 18, ld->velc1);
         std::copy(it + 18, it + 21, ld->accelc1);
-        ld->controlLine2 = new LINE(it + 21, it + 24);
-        std::copy(it + 27, it + 30, ld->velc2); 
-	std::copy(it + 30, it + 33, ld->accelc2);
-	ld->m_t = *(it + 33); 
+        ld->accelStartTime1 = *(it + 21);
+        ld->controlLine2 = new LINE(it + 22, it + 25);
+        std::copy(it + 28, it + 31, ld->velc2); 
+	std::copy(it + 31, it + 34, ld->accelc2);
+        ld->accelStartTime2 = *(it + 34);
+	ld->m_t = *(it + 35); 
 	return ld; 
+    }
+}
+
+void LineDrag::postprocess(std::vector<SpringVertex*>& pts)
+{
+    accumCurTime(); 
+    if (m_ct > accelStartTime1)
+    {
+	for (size_t i = 0; i < pts.size(); i++)
+    	{
+             double deltav[3] = {0.0};
+
+             if (pts[i]->point_type == TRANS_CPOINT1)
+             {
+                 std::transform(accelc1, accelc1 + 3, deltav,
+                        bind1st(std::multiplies<double>(), m_dt));
+                 std::transform(velc1, velc1 + 3, deltav, velc1,
+                        std::plus<double>());
+             }
+        }
+    }
+    if (m_ct > accelStartTime2)
+    {
+	double deltat = m_ct - accelStartTime2; 
+
+        for (size_t i = 0; i < pts.size(); i++)
+        {
+             double deltav[3];
+
+	     if (pts[i]->point_type == TRANS_CPOINT2)
+             {
+                 std::transform(accelc2, accelc2 + 3, deltav,
+                        bind1st(std::multiplies<double>(), m_dt));
+                 std::transform(velc2, velc2 + 3, deltav, velc2,
+                        std::plus<double>());
+             }
+        }
     }
 }
 
@@ -376,14 +379,8 @@ GravityDrag::GravityDrag(const double c[], const double r, const double a[], dou
              : PointDrag(c,r,nullptr,a,t) {}
 
 Drag* GravityDrag::clone(const Drag::Info& info) {
-    if (info.data().size() != 8) {
-	std::cout << "Gravity drag should have "
-	          << "8 parameters, " 
-		  << "but " << info.data().size() 
-		  << " parameters are given" 
-		  << std::endl; 
+    if (!validateData(info)) 
 	return NULL;
-    }
     else {
 	const std::vector<double>& v = info.data();
 	const double *it = &(v.front());
@@ -525,14 +522,8 @@ void FoldDrag::setVel(SpringVertex* sv) {
 void FoldDrag::setAccel(SpringVertex* sv) {}
 
 Drag* FoldDrag::clone(const Drag::Info& info) {
-    if (info.data().size() != 14) {
-        std::cout << "Fold drag should have "
-                  << "14 parameters, "
-                  << "but " << info.data().size()
-                  << " parameters are given"
-                  << std::endl;
+    if (!validateData(info)) 
         return NULL;
-    }
     else {
         FoldDrag* td = new FoldDrag();
         const double* it = &(info.data().front());
@@ -603,15 +594,8 @@ void ZFoldDrag::setAccel(SpringVertex* sv) {}
 
 Drag* ZFoldDrag::clone(const Drag::Info& info)
 {
-    if (info.data().size() != 20) 
-    {
-	std::cout << "Fold drag should have "
-                  << "20 parameters, "
-                  << "but " << info.data().size()
-                  << " parameters are given"
-                  << std::endl;
+    if (!validateData(info)) 
         return NULL;
-    }
     else
     {
 	ZFoldDrag *zfd = new ZFoldDrag(); 
@@ -694,14 +678,8 @@ void CloseUmbrellaDrag::setVel(SpringVertex* sv) {
 }
 
 Drag* CloseUmbrellaDrag::clone(const Drag::Info& info) {
-    if (info.data().size() != 9) {
-        std::cout << "closeUmbrellaDrag should have "
-                  << "9 parameters, "
-                  << "but " << info.data().size()
-                  << " parameters are given"
-                  << std::endl;
+    if (!validateData(info)) 
         return NULL;
-    }
     else {
         CloseUmbrellaDrag* cud = new CloseUmbrellaDrag();
         const double* it = &(info.data().front());
@@ -724,14 +702,8 @@ Drag* RelaxDrag::clone(const Drag::Info& info) {
 
 //GravityBoxDrag
 Drag* GravityBoxDrag::clone(const Drag::Info& info) {
-    if (info.data().size() != 10) {
-        std::cout << "GragBoxdrag should have "
-                  << "10 parameters, "
-                  << "but " << info.data().size()
-                  << " parameters are given"
-                  << std::endl;
+    if (!validateData(info)) 
         return NULL;
-    }
     else {
         const std::vector<double>& v = info.data();
         const double *it = &(v.front());
@@ -771,15 +743,8 @@ void GravityBoxDrag::setAccel(SpringVertex* sv) {
 //add force to compress the surface from several direction
 Drag* CompressDrag::clone(const Drag::Info& info)
 {
-    if (info.data().size() != 8)
-    {
-	std::cout << "Compress Drag should have "
-		  << "8 parameters, "
-		  << "but " << info.data().size()
-		  << " parameters are given" 
-		  << std::endl;
+    if (!validateData(info))
       	return NULL;
-    }
     else
     {
 	const std::vector<double> & v = info.data();
@@ -876,15 +841,8 @@ void RelaxDrag::preprocess(std::vector<SpringVertex*>& pts)
 //add force to separate the surface from several direction
 Drag* SeparateDrag::clone(const Drag::Info& info)
 {
-    if (info.data().size() != 11)
-    {
-	std::cout << "Separate Drag should have "
-		  << "11 parameters, "
-		  << "but " << info.data().size()
-		  << " parameters are given" 
-		  << std::endl;
+    if (!validateData(info))
       	return NULL;
-    }
     else
     {
 	const std::vector<double> & v = info.data();
