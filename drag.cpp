@@ -287,7 +287,7 @@ void LineDrag::setVel(SpringVertex* sv)
 	if (m_dt < EPS)
             std::cout << "Warning: m_dt = " << m_dt
                       << " is too small. "
-                      << "Have you called setTimeStepSize() before using it?"
+                      "Have you called setTimeStepSize() before using it?"
                       << std::endl;
     }
     if (sv->point_type == TRANS_DPOINT)
@@ -449,8 +449,8 @@ MultiplePointDrag::DragPoint::DragPoint(double c[], double r,
 Drag* MultiplePointDrag::clone(const Drag::Info& info) {
     if ((info.data().size() - 1)%10 != 0) {
 	std::cout << "Multiple point drag should have "
-	          << "10x + 1 parameters, " 
-		  << "but " << info.data().size() 
+	          "10x + 1 parameters, " 
+		  "but " << info.data().size() 
 		  << " parameters are given" 
 		  << std::endl; 
 	return NULL;
@@ -503,7 +503,7 @@ void FoldDrag::setVel(SpringVertex* sv) {
 	if (m_dt < EPS)
 	    std::cout << "Warning: m_dt = " << m_dt
 		      << " is too small. "
-		      << "Have you called setTimeStepSize() before using it?" 
+		      "Have you called setTimeStepSize() before using it?" 
 		      << std::endl;
 	double theta = angVel * m_dt;
 	spinToAxis(spinOrig,spinDir,theta,p1);
@@ -575,7 +575,7 @@ void ZFoldDrag::setVel(SpringVertex* sv)
 	if (m_dt < EPS)
             std::cout << "Warning: m_dt = " << m_dt
                       << " is too small. "
-                      << "Have you called setTimeStepSize() before using it?"
+                      "Have you called setTimeStepSize() before using it?"
                       << std::endl;
 	double *p = sv->getCoords(); 
 	double p1[3]; 
@@ -636,7 +636,7 @@ void CloseUmbrellaDrag::preprocess(std::vector<SpringVertex*>& pts) {
 	    double theta_l = floor(theta/d_theta)*d_theta;
 	    double theta_r = ceil(theta/d_theta)*d_theta;
 	    double dist = std::min(len*fabs(sin(theta-theta_l)),len*fabs(sin(theta-theta_r)));
-	    if (fabs(dist) < 1.1*getTolerance()) 
+	    if (fabs(dist) < 0.5*getTolerance()) 
 	    {
 	        sv->point_type = ROTATE_POINT;
 	        sv->setRegistered();
@@ -675,6 +675,19 @@ void CloseUmbrellaDrag::setVel(SpringVertex* sv) {
     }
     else
         return;
+}
+
+void CloseUmbrellaDrag::setAccel(SpringVertex* sv)
+{
+    double *a = sv->getExternalAccel();
+    if (sv->isRegistered())
+        std::fill(a,a+3,0);
+    else
+    {	
+        a[0] = 0; 
+	a[1] = 0; 
+	a[2] = -9.8;
+    }
 }
 
 Drag* CloseUmbrellaDrag::clone(const Drag::Info& info) {
