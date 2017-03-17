@@ -223,9 +223,6 @@ void Folder3d::doFolding(
 	cd_solver->setTimeStepSize(dt);
 
     	sp_solver->solve(dt);
-        // only update vel for line drag
-        if (t > 0.5)
-            drag->updateVel(sp_solver->getSpringMesh(), t); 
 	
 	recordData(t,movie->out_dir);
 
