@@ -13,8 +13,11 @@ CGAL_Lib=@CGAL_LIB@ -lCGAL_Core -lCGAL_ImageIO -lCGAL
 CVODE_Include=@CVODE_INCLUDE@
 CVODE_Lib=@CVODE_LIB@ -lsundials_cvode -lsundials_nvecserial
 
-test: test.o folding.o folding_helper.o drag.o dcollid3d.o dcollid.o spring_solver.o drag_proto.o ex_spring_solver.o im_spring_solver.o bending.o cgal.o
-	$(CXX) $^ -lFronTier -lm -o test $(libincs) $(libs) $(incs) $(CGAL_Include) $(CGAL_Lib) $(CVODE_Include) $(CVODE_Lib) -lgmp -lmpfr -frounding-math
+NLOPT_Include=-I./lib
+NLOPT_Lib=-L./lib
+
+test: test.o folding.o folding_helper.o drag.o dcollid3d.o dcollid.o spring_solver.o drag_proto.o ex_spring_solver.o im_spring_solver.o bending.o cgal.o origami.o
+	$(CXX) $^ -lFronTier -lm -o test $(libincs) $(libs) $(incs) $(CGAL_Include) $(CGAL_Lib) $(CVODE_Include) $(CVODE_Lib) $(NLOPT_Lib) -lgmp -lmpfr -frounding-math
 dcollid3d.o: ../Collision/dcollid3d.cpp
 	$(CXX) $< -c $(incs) $(CGAL_Include) -frounding-math
 dcollid.o: ../Collision/dcollid.cpp
@@ -25,6 +28,8 @@ test.o: test.cpp
 	$(CXX) $< -c $(incs) $(CGAL_Include) -frounding-math
 im_spring_solver.o: im_spring_solver.cpp
 	$(CXX) $< -c $(incs) $(CVODE_Include) -frounding-math
+origami.o: origami.cpp
+        $(CXX) $< -c $(incs) $(NLOPT_Include)
 %.o: %.cpp
 	$(CXX) $< -c $(incs) $(CGAL_Include) -frounding-math
 

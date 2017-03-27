@@ -12,6 +12,19 @@ void SpringVertex::addNeighbor(size_t i_nb, double len0)
     length0.push_back(len0);
 }
 
+SpringVertex::SpringVertex(SpringVertex& spv)
+{
+    x = spv.x;
+    v = spv.v;
+    org_vtx = org_vtx;
+    std::copy(spv.accel, spv.accel+3, accel);
+    std::copy(spv.ext_accel, spv.ext_accel+3, ext_accel);
+    index_nb = spv.index_nb;
+    length0 = spv.length0;
+    is_registered = spv.is_registered;
+    point_type = spv.point_type;
+}
+
 //class SpringSolver
 void SpringSolver::printAdjacencyList(std::string fname) {
     std::ofstream ofs(fname.c_str());

@@ -148,11 +148,11 @@ void Folder3d::doFolding() {
     
     //default bend coefficient and bend damping coefficient is 
     //0.01 and 0.0
-    BendingForce* btemp = new BendingForce(m_intfc); 
+    /*BendingForce* btemp = new BendingForce(m_intfc); 
     std::string temp(getInputFile()); 
 
     btemp->getParaFromFile(temp.c_str()); 
-    sp_solver->ext_forces.push_back(btemp);
+    sp_solver->ext_forces.push_back(btemp);*/
     
     Drag::setTolerance(m_intfc->table->rect_grid.h[0]*0.5);
     Drag::setThickness(0.001);
@@ -210,6 +210,7 @@ void Folder3d::doFolding(
     double t0 = 0; 
     static double t = 0;
     double dt = max_dt;
+    printf("drag = %s, m_t = %f\n", drag->id().c_str(), drag->m_t);
     movie->recordMovieFrame();
     while (t0 < drag->m_t - MACH_EPS) {
 	printf("--------------------------------\n");
@@ -226,7 +227,7 @@ void Folder3d::doFolding(
 	
 	recordData(t,movie->out_dir);
 
-	cd_solver->resolveCollision();
+	//cd_solver->resolveCollision();
 
 	t += dt;
         t0 += dt; 

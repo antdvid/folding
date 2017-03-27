@@ -1,4 +1,5 @@
 #include "drag.h"
+#include "origami.h"
 #include <vector>
 
 std::vector<Drag*> Drag::prototypes;
@@ -19,6 +20,7 @@ class DragProtoInit {
     CompressDrag cpd;
     SeparateDrag spd;
     RollDrag rold; 
+    OrigamiFold ogmd; 
     DragProtoInit() {
 	Drag::prototypes.push_back(&pd);
 	Drag::prototypes.push_back(&ld); 
@@ -32,6 +34,7 @@ class DragProtoInit {
 	Drag::prototypes.push_back(&cpd);
 	Drag::prototypes.push_back(&spd);
         Drag::prototypes.push_back(&rold);
+        Drag::prototypes.push_back(&ogmd);
     }
     static DragProtoInit singleton;
 };

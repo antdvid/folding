@@ -22,7 +22,8 @@ struct SpringVertex
     int point_type;
     
     SpringVertex():is_registered(false){}
-    ~SpringVertex(){}
+    SpringVertex(SpringVertex&); //copy constructor
+    virtual ~SpringVertex(){}
     double* getVel() {return v;}
     double* getCoords() {return x;}
     double* getExternalAccel() {return ext_accel;}

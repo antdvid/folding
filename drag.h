@@ -229,7 +229,7 @@ public:
     std::string id() {return "CloseUmbrellaDrag";}
     Drag* clone(const Drag::Info&);
     void setVel(SpringVertex*);
-    void setAccel(SpringVertex*){}
+    void setAccel(SpringVertex*);
     virtual size_t dataSize() { return 9; }
     CloseUmbrellaDrag() {}
 };
