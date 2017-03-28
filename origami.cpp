@@ -318,7 +318,6 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
 				     points[pindex], angles[i]);
 	crs->vtx = vtx;
 	vtx->creases.push_back(crs);
-	rho_T.push_back(angles[i]);
     }
 
     for (auto vtx : vertices)
@@ -331,6 +330,15 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
     		return a1 < a2;
 	     });
     }
+    
+    //assemble rho_T according to the order of creases
+    for (auto vtx : vertices)
+    {
+	for (auto crs : vtx->creases)
+        {
+	    rho_T.push_back(crs->rho_T);
+     	}
+    } 
 }
 
 void OrigamiFold::ogmComputeNewPosition(SpringVertex* sv, std::vector<double>& new_crds)
@@ -521,7 +529,7 @@ double Math::angleBetween(const std::vector<double>& v1,
     }
     double m1 = Math::Mag(v1);
     double m2 = Math::Mag(v2);
-    return acos(dp/(m1*m2));
+    return acos(std::max(std::min(dp/(m1*m2), 1.0), -1.0));
 }
 
 double Math::angleBetweenWithDir(
