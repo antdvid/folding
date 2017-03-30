@@ -2,7 +2,8 @@
 #include <iostream>
 #include <iterator>
 #include <unordered_map>
-static std::ostream& operator << (std::ostream& os, const std::vector<double>& v);
+static std::ostream& operator << (std::ostream& os, const std::vector<double>&);
+static std::ostream& operator << (std::ostream& os, const std_matrix&);
 
 //class OgmPoint 
 OgmPoint::OgmPoint(SpringVertex& sv) : SpringVertex(sv)
@@ -49,43 +50,58 @@ void OrigamiFold::assignVertexId(std::vector<SpringVertex*>& pts)
     {
 	for (auto vtx : vertices)
 	{
+	    if (vtx->creases.size() == 0)
+		continue;
+	    if (vtx->creases.size() == 1)
+	    {
+		OgmPoint* og_pt = static_cast<OgmPoint*>(sv);
+                og_pt->crs.push_back(vtx->creases.back());
+		continue;
+	    }
+
+	    std::vector<double> nor(3, 0);
+	    Math::Cross3d(vtx->creases[0]->dir, vtx->creases[1]->dir, nor);
 	    std::vector<double> v0(3,0);
 	    for (int j = 0; j < 3; ++j)
 	    {
 		v0[j] = sv->getCoords()[j] - vtx->crds[j];
 	    }
+	    double alpha0 = Math::angleBetweenWithDir(
+					vtx->creases[0]->dir,
+					v0, nor);
 
 	    if (Math::Mag(v0) < 1e-12)
 	    {
 		OgmPoint* og_pt = static_cast<OgmPoint*>(sv);
                 og_pt->crs.push_back(vtx->creases.back());
 	    }
-	    else
-	    for (int j = 1; j <= vtx->creases.size(); ++j)
+	    else if (alpha0 > Math::angleBetweenWithDir(
+					vtx->creases[0]->dir,
+					vtx->creases.back()->dir, nor))
 	    {
-		Crease* c1, *c2;
-		std::vector<double> v1, v2;
-		if (j == vtx->creases.size())
-		{
-		    v1 = vtx->creases[j-1]->dir;
-		    v2 = vtx->creases[0]->dir;
-		    c1 = vtx->creases[j-1];
-		    c2 = vtx->creases[0];
-		}
-		else
-		{
-		    v1 = vtx->creases[j-1]->dir;
-		    v2 = vtx->creases[j]->dir; 
-		    c1 = vtx->creases[j-1];
-		    c2 = vtx->creases[j];
-		}
-		if(fabs(Math::angleBetween(v0,v1)
-		+ Math::angleBetween(v0,v2) 
-		- Math::angleBetween(v1,v2)) < 1e-12)
+		OgmPoint* og_pt = static_cast<OgmPoint*>(sv);
+                og_pt->crs.push_back(vtx->creases.back());
+	    }
+	    else
+	    for (int j = 1; j < vtx->creases.size(); ++j)
+	    {
+		double alpha1 = Math::angleBetweenWithDir(
+					vtx->creases[0]->dir,	
+					vtx->creases[j-1]->dir, nor);
+		double alpha2 = Math::angleBetweenWithDir(
+					vtx->creases[0]->dir,
+					vtx->creases[j]->dir, nor);
+		if (alpha0 >= alpha1 && alpha0 <= alpha2)
 		{
 		    OgmPoint* og_pt = static_cast<OgmPoint*>(sv);
-		    og_pt->crs.push_back(c1);
+		    og_pt->crs.push_back(vtx->creases[j-1]);
 		}
+	    }
+	    if (static_cast<OgmPoint*>(sv)->crs.size() == 0)
+	    {
+		std::cout << "alpha0 = " << alpha0 << std::endl;
+	    	std::cout << "ERROR: crease not assigned" << std::endl;
+	    	exit(-1);
 	    }
 	}
     }
@@ -96,7 +112,7 @@ std::vector<double> OrigamiFold::findFoldable(std::vector<double>& input, double
     if (m_opt == NULL)
     {
 	size_t N = rho.size();
-	m_opt = new nlopt::opt(nlopt::LN_NELDERMEAD, N);
+	m_opt = new nlopt::opt(nlopt::LN_COBYLA, N);
 	this->m_opt->set_stopval(1e-6);
         this->m_opt->set_ftol_abs(1e-6);
         this->m_opt->set_xtol_rel(1e-6);
@@ -104,6 +120,7 @@ std::vector<double> OrigamiFold::findFoldable(std::vector<double>& input, double
 	nlopt::srand(1234);
 	std::vector<double> lowerbounds(N, -M_PI);
         std::vector<double> upperbounds(N, M_PI);
+
 	m_opt->set_lower_bounds(lowerbounds); 
 	m_opt->set_upper_bounds(upperbounds);
 	this->m_opt->set_min_objective(staticTargetFunction, this);
@@ -148,6 +165,18 @@ std::ostream& operator << (std::ostream& os, const std::vector<double>& v)
     return os;
 }
 
+std::ostream& operator << (std::ostream& os, const std_matrix& m)
+{
+    os << "[" << std::endl;
+    for (auto v : m)
+    {
+    	std::copy(v.begin(), v.end(), std::ostream_iterator<double>(os, " "));
+	os << std::endl;
+    }
+    os << "]" << std::endl;
+    return os;
+}
+
 void OrigamiFold::findNextFoldingAngle()
 {
     const int maxIter = 2000;
@@ -162,8 +191,7 @@ void OrigamiFold::findNextFoldingAngle()
 	std::vector<double> dir(N, 0);
 	for (int i = 0; i < N; ++i)
 	{
-	    rho_rand[i] = (rand()/(double)RAND_MAX * 2 
-			   - 1) * M_PI;
+	    rho_rand[i] = (rand()/(double)RAND_MAX * 2 - 1) * M_PI;
 	    dir[i] = (1 - w) * rho_rand[i] + w * rho_T[i];
 	    rho_tau[i] = rho_delta[i] + D * dir[i];
 	    //hard limit for input
@@ -175,9 +203,6 @@ void OrigamiFold::findNextFoldingAngle()
 	rho = findFoldable(rho_tau, err);
 	if (isValid(rho), Math::dist3d(rho_T, rho) < Math::dist3d(rho_T, rho_delta))
 	{
-	    std::cout << "rho_delta = " 
-			  << rho_delta << std::endl;
-	    std::cout << "err = " << err << std::endl;
 	    rho_delta = rho;
 	    w = w + w1;	
 	    success = true;
@@ -191,7 +216,7 @@ void OrigamiFold::findNextFoldingAngle()
     }    
     if (iter >= maxIter)
     {
-	std::cout << "Notice: maxium iteration reached\n" 
+	std::cout << "Maxium iteration reached\n" 
 	<< "folding angle = [" << rho_delta << "]" 
 	<< std::endl;
 	std::cout << "Folding process is terminated" 
@@ -322,15 +347,20 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
 
     for (auto vtx : vertices)
     {
+	if (vtx->creases.size() < 2)
+	    continue;
+	std::vector<double> nor(3, 0);
+        Math::Cross3d(vtx->creases[0]->dir, 
+		      vtx->creases[1]->dir, nor);
+        std::vector<double> x_axis = vtx->creases[0]->dir;
 	sort(vtx->creases.begin(), vtx->creases.end(),
-	     [](Crease* c1, Crease* c2)->bool {
-		std::vector<double> x_axis = c1->vtx->creases[0]->dir;
-    		double a1 = Math::angleBetweenWithDir(c1->dir, x_axis);
-    		double a2 = Math::angleBetweenWithDir(c2->dir, x_axis);
+	     [&](const Crease* c1, const Crease* c2)->bool {
+    		double a1 = Math::angleBetweenWithDir(x_axis, c1->dir, nor);
+    		double a2 = Math::angleBetweenWithDir(x_axis, c2->dir, nor);
     		return a1 < a2;
 	     });
     }
-    
+
     //assemble rho_T according to the order of creases
     for (auto vtx : vertices)
     {
@@ -534,13 +564,15 @@ double Math::angleBetween(const std::vector<double>& v1,
 
 double Math::angleBetweenWithDir(
 		const std::vector<double>& v1,
-                const std::vector<double>& v2)
+                const std::vector<double>& v2,
+		const std::vector<double>& nor)
 {
-    std::vector<double> n(3, 0);
-    Math::Cross3d(v1, v2, n);
-    double tp = TriProd(v1, v2, n);
-    double ans = angleBetween(v1, v2);
-    return (tp > 0) ? ans : 2*M_PI - ans;
+    //angle increases from v1 to v2
+    std::vector<double> n = nor;
+    Normalize(n);
+    double det = TriProd(n, v1, v2);
+    double dot = Math::Dot3d(v1, v2);
+    return det >= 0 ? atan2(det, dot) : 2*M_PI + atan2(det, dot);
 }
 
 void Math::Cross3d(const std::vector<double>& u,

@@ -69,7 +69,6 @@ private:
     double targetFunction(const std::vector<double>&);
     void findNextFoldingAngle();
     void ogmComputeNewPosition(SpringVertex* sv, std::vector<double>&);
-    double angleBetween(double* v1, double* v2);
     bool isValid(const std::vector<double>&);
     Drag * clone(const Info&);
     size_t totalDataSize;
@@ -109,7 +108,8 @@ public:
 
     static double angleBetweenWithDir(
                 const std::vector<double>& v1,
-                const std::vector<double>& v2);
+                const std::vector<double>& v2,
+		const std::vector<double>& n);
  
     static double Mag(const std::vector<double>&);
 
