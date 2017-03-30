@@ -21,61 +21,46 @@ void Folder::addDragsFromFile(std::string fname) {
         return; 
     }
 
-    std::string line;
-    std::string temp; 
-    double tmp;
     Drag::Info info;
     std::set<std::string> foldset;
     
     for (std::vector<Drag*>::iterator it = Drag::prototypes.begin();
                 it != Drag::prototypes.end(); it++)
          foldset.insert((*it) -> id());
-    getline(ifs, line);
-    while (true) {
-        if (ifs.eof())
-        {
-            if (!info.empty())
-            {
-                addDrag(Drag::dragFactory(info));
-                info.clear();
-            }
-            break;
-        }
-        if (line[0] == '\0')
-        {
-            addDrag(Drag::dragFactory(info));
-            info.clear();
-            getline(ifs, line);
-            continue;
-        }
 
-        std::istringstream ss(line);
-        ss >> temp;
-        if (foldset.find(temp) != foldset.end())
-        {
-                info.id() = temp;
-                while (ss >> tmp)
-                        info.data().push_back(tmp);
-                addDrag(Drag::dragFactory(info));
-                info.clear();
-        }
-        else if (temp == "foldingplan")
-        {
-            ss >> info.id();
-            while (ss >> tmp)
-                info.data().push_back(tmp);
-        }
+    std::string s;
+    info.clear();
+    while (ifs >> s)
+    {
+	//three cases: drag name, numeric, garbage
+	if (find(foldset.begin(), foldset.end(), s) != foldset.end())
+	{
+	     //new drag found, create drag using info
+	     //begin to collect information for new drag
+	     if (info.data().size() != 0)
+	     {
+		addDrag(Drag::dragFactory(info));
+	     }	     
+	     info.clear();
+	     info.id() = s;
+	}
 	else
-        {
-            while (temp.back() != ':')
-                ss >> temp;
-            while (ss >> tmp)
-                info.data().push_back(tmp);
-        }
-        getline(ifs, line);
+	{
+	     //check if it is a double
+	     try 
+	     {
+	         std::stod(s);
+	     }
+	     catch(...)
+	     {
+		 continue;
+	     }
+	     info.data().push_back(std::stod(s));
+	}
     }
-    ifs.clear();
-    ifs.close();
+    //last drag
+    if (info.data().size() != 0)
+	addDrag(Drag::dragFactory(info));
 }
 
 void Folder::setSpringParameters(double k, double lambda, double m) {

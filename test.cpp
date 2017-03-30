@@ -65,7 +65,7 @@ int main(int argc, char** argv)
 	folder->setInputFile(inname);
         fin.close(); 
 	//set folding movie
-	folder->setupMovie("fold_movie", OutName(&front), 0.05);
+	folder->setupMovie("fold_movie", OutName(&front), 0.01);
 
 	//set numerical scheme for ode EXPLICIT or IMPLICIT
         folder->setOdeScheme(SpringSolver::IMPLICIT);
