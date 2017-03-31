@@ -20,7 +20,7 @@ struct Crease //folding line
     void crsRotationMatrixDerivative(std::vector<std::vector<double>>&, double);
     void updateFoldingMatrix(const std::vector<std::vector<double>>&);
     void crsFoldCrds(std::vector<double>&);
-    
+
     //constructor
     Crease(const std::vector<double>&, const std::vector<double>&,const double);
 };
@@ -37,7 +37,7 @@ struct Vertex
 {
     std::vector<double> crds;
     std::vector<Crease*> creases;
-
+    std::vector<double> nor;
     //constructor
     Vertex(const std::vector<double>&);
     void updateCreaseFoldingMatrix(const std::vector<double>& rho);
@@ -69,6 +69,7 @@ private:
     double targetFunction(const std::vector<double>&);
     void findNextFoldingAngle();
     void ogmComputeNewPosition(SpringVertex* sv, std::vector<double>&);
+    void sortCreases(double*);
     bool isValid(const std::vector<double>&);
     Drag * clone(const Info&);
     size_t totalDataSize;

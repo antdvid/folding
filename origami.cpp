@@ -2,6 +2,7 @@
 #include <iostream>
 #include <iterator>
 #include <unordered_map>
+#include <fstream>
 static std::ostream& operator << (std::ostream& os, const std::vector<double>&);
 static std::ostream& operator << (std::ostream& os, const std_matrix&);
 
@@ -42,10 +43,13 @@ void OrigamiFold :: preprocess(std::vector<SpringVertex*>& pts)
 	v->updateCreaseFoldingMatrix(myrho); 
 	start += v->creases.size();
     }
+    
 }
 
 void OrigamiFold::assignVertexId(std::vector<SpringVertex*>& pts)
 {
+    sortCreases(pts[rand()%pts.size()]->getCoords());
+    //assign crease to each spring point
     for (SpringVertex* sv : pts)
     {
 	for (auto vtx : vertices)
@@ -59,17 +63,11 @@ void OrigamiFold::assignVertexId(std::vector<SpringVertex*>& pts)
 		continue;
 	    }
 
-	    std::vector<double> nor(3, 0);
-	    Math::Cross3d(vtx->creases[0]->dir, vtx->creases[1]->dir, nor);
-	    std::vector<double> v0(3,0);
-	    for (int j = 0; j < 3; ++j)
-	    {
-		v0[j] = sv->getCoords()[j] - vtx->crds[j];
-	    }
+	    std::vector<double> v0(sv->getCoords(), sv->getCoords()+3);
+	    Math::V3mV3(v0, vtx->crds, v0);
 	    double alpha0 = Math::angleBetweenWithDir(
 					vtx->creases[0]->dir,
-					v0, nor);
-
+					v0, vtx->nor);
 	    if (Math::Mag(v0) < 1e-12)
 	    {
 		OgmPoint* og_pt = static_cast<OgmPoint*>(sv);
@@ -77,7 +75,7 @@ void OrigamiFold::assignVertexId(std::vector<SpringVertex*>& pts)
 	    }
 	    else if (alpha0 > Math::angleBetweenWithDir(
 					vtx->creases[0]->dir,
-					vtx->creases.back()->dir, nor))
+					vtx->creases.back()->dir, vtx->nor))
 	    {
 		OgmPoint* og_pt = static_cast<OgmPoint*>(sv);
                 og_pt->crs.push_back(vtx->creases.back());
@@ -87,10 +85,10 @@ void OrigamiFold::assignVertexId(std::vector<SpringVertex*>& pts)
 	    {
 		double alpha1 = Math::angleBetweenWithDir(
 					vtx->creases[0]->dir,	
-					vtx->creases[j-1]->dir, nor);
+					vtx->creases[j-1]->dir, vtx->nor);
 		double alpha2 = Math::angleBetweenWithDir(
 					vtx->creases[0]->dir,
-					vtx->creases[j]->dir, nor);
+					vtx->creases[j]->dir, vtx->nor);
 		if (alpha0 >= alpha1 && alpha0 <= alpha2)
 		{
 		    OgmPoint* og_pt = static_cast<OgmPoint*>(sv);
@@ -121,6 +119,13 @@ std::vector<double> OrigamiFold::findFoldable(std::vector<double>& input, double
 	std::vector<double> lowerbounds(N, -M_PI);
         std::vector<double> upperbounds(N, M_PI);
 
+	for (size_t i = 0; i < N; ++i)
+	{
+	    if (rho_T[i] > 0)
+		lowerbounds[i] = 0;
+	    if (rho_T[i] < 0)
+		upperbounds[i] = 0;
+	}
 	m_opt->set_lower_bounds(lowerbounds); 
 	m_opt->set_upper_bounds(upperbounds);
 	this->m_opt->set_min_objective(staticTargetFunction, this);
@@ -206,6 +211,7 @@ void OrigamiFold::findNextFoldingAngle()
 	    rho_delta = rho;
 	    w = w + w1;	
 	    success = true;
+	    std::cout << "rho = " << rho << std::endl;
 	}
 	else
 	{
@@ -219,6 +225,7 @@ void OrigamiFold::findNextFoldingAngle()
 	std::cout << "Maxium iteration reached\n" 
 	<< "folding angle = [" << rho_delta << "]" 
 	<< std::endl;
+	std::cout << "err = " << targetFunction(rho_delta) << std::endl;
 	std::cout << "Folding process is terminated" 
 	<< std::endl;
 	m_t = 0;
@@ -345,22 +352,44 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
 	vtx->creases.push_back(crs);
     }
 
+}
+
+void OrigamiFold::sortCreases(double* rand_crds)
+{
+    //compute normal vector
     for (auto vtx : vertices)
     {
-	if (vtx->creases.size() < 2)
-	    continue;
-	std::vector<double> nor(3, 0);
-        Math::Cross3d(vtx->creases[0]->dir, 
-		      vtx->creases[1]->dir, nor);
+    	vtx->nor = {0, 0, 0};
+	if (vtx->creases.size() == 0)
+	{
+	    vtx->nor = {0, 0, 1};
+	}
+	else if (vtx->creases.size() > 1)
+	{
+	    Math::Cross3d(vtx->creases[0]->dir, vtx->creases[1]->dir, vtx->nor);
+	}
+	if (Math::Mag(vtx->nor) < 1e-15)
+	{
+	    //one crease line or two parallel crease lines
+	    std::vector<double> rand_v(rand_crds, rand_crds+3);
+	    Math::V3mV3(rand_v, vtx->crds, rand_v);
+	    Math::Cross3d(vtx->creases[0]->dir, rand_v, vtx->nor);
+	}
+	Math::Normalize(vtx->nor);
+    }
+
+
+    //sort creases
+    for (auto vtx : vertices)
+    {
         std::vector<double> x_axis = vtx->creases[0]->dir;
 	sort(vtx->creases.begin(), vtx->creases.end(),
 	     [&](const Crease* c1, const Crease* c2)->bool {
-    		double a1 = Math::angleBetweenWithDir(x_axis, c1->dir, nor);
-    		double a2 = Math::angleBetweenWithDir(x_axis, c2->dir, nor);
+    		double a1 = Math::angleBetweenWithDir(x_axis,c1->dir,vtx->nor);
+    		double a2 = Math::angleBetweenWithDir(x_axis,c2->dir,vtx->nor);
     		return a1 < a2;
 	     });
     }
-
     //assemble rho_T according to the order of creases
     for (auto vtx : vertices)
     {
@@ -369,6 +398,7 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
 	    rho_T.push_back(crs->rho_T);
      	}
     } 
+
 }
 
 void OrigamiFold::ogmComputeNewPosition(SpringVertex* sv, std::vector<double>& new_crds)
@@ -387,6 +417,14 @@ OrigamiFold::~OrigamiFold() {
     {
 	delete this->m_opt;
 	this->m_opt = NULL;
+    }
+    for (auto v : vertices)
+    {
+	for (auto c : v->creases)
+	{
+	    delete c;
+	}
+	delete v;
     }
 }
 
