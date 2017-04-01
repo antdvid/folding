@@ -152,7 +152,6 @@ void SpringSolver::solve(double dt)
 		count++;
 	    }
 	}
-	printf("%d registered points\n", count);
     }
     doSolve(dt);
     if (m_drag)

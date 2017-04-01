@@ -293,4 +293,24 @@ public:
     void setVel(SpringVertex* sv);
     void setAccel(SpringVertex* sv){}
 };
+
+class AlignDrag: public Drag {
+    double rotate_center[3];
+    double rotate_axis[3];
+    double gravity_center[3];
+    double dir[3];
+    double rotate_angle = 0;
+    double R[3][3];
+    AlignDrag(const double[], const double[]);
+public:
+    AlignDrag(){};
+    void preprocess(std::vector<SpringVertex*>&);
+    void postprocess(std::vector<SpringVertex*>&);
+    std::string id() {return "AlignDrag";}
+    Drag* clone(const Drag::Info&);
+    virtual size_t dataSize() {return 6;}
+    void setVel(SpringVertex* sv){}
+    void setAccel(SpringVertex* sv){}
+};
+
 #endif

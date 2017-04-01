@@ -21,6 +21,7 @@ class DragProtoInit {
     SeparateDrag spd;
     RollDrag rold; 
     OrigamiFold ogmd; 
+    AlignDrag ag;
     DragProtoInit() {
 	Drag::prototypes.push_back(&pd);
 	Drag::prototypes.push_back(&ld); 
@@ -35,6 +36,7 @@ class DragProtoInit {
 	Drag::prototypes.push_back(&spd);
         Drag::prototypes.push_back(&rold);
         Drag::prototypes.push_back(&ogmd);
+        Drag::prototypes.push_back(&ag);
     }
     static DragProtoInit singleton;
 };

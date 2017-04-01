@@ -75,6 +75,36 @@ double LINE::distance(double* p)
     return Mag3d(dtemp) / Mag3d(p21);     
 }
 
+static void computeRotationMatrix(double* dir,
+                           double theta,
+			   double R[][3])
+{
+    double u,v,w;
+    //dir should be normalized
+    double M = std::sqrt(dir[0]*dir[0] 
+	+ dir[1]*dir[1] + dir[2]*dir[2]);
+    u = dir[0]/M; v = dir[1]/M; w = dir[2]/M;
+
+    R[0][0] = u*u + (1-u*u)*cos(theta);
+    R[0][1] = u*v*(1-cos(theta)) - w*sin(theta);
+    R[0][2] = u*w*(1-cos(theta))+v*sin(theta);
+
+    R[1][0] = u*v*(1-cos(theta)) + w*sin(theta);
+    R[1][1] = v*v + (1 - v*v)*cos(theta);
+    R[1][2] = v*w*(1-cos(theta)) - u*sin(theta);
+
+    R[2][0] = u*w*(1-cos(theta)) - v*sin(theta);
+    R[2][1] = v*w*(1-cos(theta)) + u*sin(theta);
+    R[2][2] = w*w+(1-w*w)*cos(theta);
+}
+
+static void Normalize(double* v)
+{
+    double mv = Mag3d(v); 
+    for (int i = 0; i < 3; ++i)
+	v[i] /= mv;
+}
+
 static double distance_between(const double p1[], 
 		const double p2[], int dim) {
     double dist = 0;
@@ -105,6 +135,16 @@ static double Dot3d(const double* v1, const double* v2)
 static double Mag3d(const double* v) 
 { 
     return sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
+}
+
+static void M3xV3(const double M[][3], const double* V, double* ans)
+{
+    for (int i = 0; i < 3; ++i)
+    {
+	ans[i] = 0;
+	for (int j = 0; j < 3; ++j)
+	    ans[i] += M[i][j] * V[j];
+    }
 }
 
 static double pointToLine(
@@ -1036,3 +1076,76 @@ void RollDrag::setVel(SpringVertex* sv)
         vel[i] = (p1[i] - p0[i])/m_dt;
     }
 }
+
+//AlignDrag
+//Align the geometric center to required direction
+Drag* AlignDrag::clone(const Drag::Info& info)
+{
+    if (!validateData(info))
+        return NULL;
+    else {
+        const std::vector<double>& v = info.data();
+        const double *it = &(v.front());
+        return new AlignDrag(it, it+3);
+    }    
+}
+
+AlignDrag::AlignDrag(const double* rotate_center, 
+		     const double* dir)
+{
+    std::copy(rotate_center, rotate_center+3, this->rotate_center);
+    std::copy(dir, dir+3, this->dir);
+    m_t = 1;
+}
+
+void AlignDrag::preprocess(std::vector<SpringVertex*>& pts)
+{
+    //calculate geomeric center
+    std::fill(gravity_center, gravity_center+3, 0);
+    for (auto sv : pts)
+    {
+	sv->setRegistered();
+	double* crds = sv->getCoords();
+	for (int i = 0; i < 3; ++i)
+    	    gravity_center[i] += crds[i];
+    }
+    for (int i = 0; i < 3; ++i)
+            gravity_center[i] /= pts.size();
+
+    double v1[3] = {0};
+    double v2[3] = {0};
+    for (int i = 0; i < 3; ++i)
+    {
+	v1[i] = gravity_center[i] - rotate_center[i];
+	v2[i] = dir[i];
+    }
+    Cross3d(v1, v2, rotate_axis);
+    if (Mag3d(rotate_axis) < 1e-15)
+    {
+	rotate_axis[0] = v2[1];
+	rotate_axis[1] = -v2[0];
+	rotate_axis[2] = 0;
+    }
+    Normalize(rotate_axis);
+
+    rotate_angle = std::acos(std::max(
+		   std::min(Dot3d(v1, v2)/(Mag3d(v1)*Mag3d(v2)), 1.0), -1.0));
+    computeRotationMatrix(rotate_axis, rotate_angle, R);
+}
+
+void AlignDrag::postprocess(std::vector<SpringVertex*>& pts)
+{
+    for (auto sv : pts)
+    {
+	double crds[3], new_crds[3];
+	std::copy(sv->getCoords(), sv->getCoords()+3, crds);
+	std::copy(sv->getCoords(), sv->getCoords()+3, new_crds);
+	for (int i = 0; i < 3; ++i)
+	    crds[i] -= rotate_center[i];
+	M3xV3(R, crds, new_crds);
+	for (int i = 0; i < 3; ++i)
+	sv->getCoords()[i] = new_crds[i] + rotate_center[i];
+    }
+    m_t = 0; // terminate drag
+}
+ 
