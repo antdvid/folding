@@ -72,7 +72,7 @@ public :
 
 class cgalCircleSurf : public cgalSurf
 {
-private : 
+protected : 
     double cen[2]; 
     double radius; 
     int num_reg_const;
@@ -85,6 +85,16 @@ public :
     virtual void getParaFromFile(std::ifstream&);
     double distance(double*, double*, int); 
     virtual ~cgalCircleSurf() {}
+};
+
+class cgalParaSurf : public cgalCircleSurf {
+    int num_lines; 
+public : 
+    cgalParaSurf(INTERFACE* intfc, SURFACE** surf) : 
+		cgalCircleSurf(intfc, surf) {}
+    virtual void addCgalConst(); 
+    virtual void getParaFromFile(std::ifstream&); 
+    virtual ~cgalParaSurf() {}; 
 };
 
 #endif

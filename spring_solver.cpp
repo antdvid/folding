@@ -16,7 +16,7 @@ SpringVertex::SpringVertex(SpringVertex& spv)
 {
     x = spv.x;
     v = spv.v;
-    org_vtx = org_vtx;
+    org_vtx = spv.org_vtx;
     std::copy(spv.accel, spv.accel+3, accel);
     std::copy(spv.ext_accel, spv.ext_accel+3, ext_accel);
     index_nb = spv.index_nb;

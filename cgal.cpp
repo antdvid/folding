@@ -1,4 +1,6 @@
 #include "cgal.h"
+#include <stdexcept>
+#include <utility>
 
 cgalSurf::cgalSurf(INTERFACE* intfc, SURFACE** surf) :  
 		c_intfc(intfc), c_surf(surf) 
@@ -330,6 +332,14 @@ void cgalCircleSurf::addCgalConst()
          v2 = cdt.insert(Cgal_Point(regConPoint[i+2], regConPoint[i+3])); 
          cdt.insert_constraint(v1, v2); 
     }
+    // a test for considering C9 gore
+    theta = 2 * PI / 28; 
+    v1 = cdt.insert(Cgal_Point(cen[0], cen[1]));
+    for (int i = 0; i < 28; i++) { 
+	 v2 = cdt.insert(Cgal_Point(cen[0] + radius * cos((i+0.5) * theta), 
+		cen[1] + radius * sin((i+0.5) * theta))); 
+	 cdt.insert_constraint(v1, v2); 
+    }
     // add extra constraint
     // some extra constraint points which are very close
     // to certain regular constraint point were meant to be it
@@ -363,7 +373,6 @@ void cgalCircleSurf::addCgalConst()
 void cgalCircleSurf::cgalTriMesh(std::ifstream& fin)
 {
     CDT::Finite_faces_iterator fit;
-    std::list<Cgal_Point> seeds;
 
     getParaFromFile(fin);
     // add constraint
@@ -371,7 +380,7 @@ void cgalCircleSurf::cgalTriMesh(std::ifstream& fin)
     addCgalConst();
 
     double cri_dx = k_dx * c_intfc->table->rect_grid.h[0];
-
+    std::list<Cgal_Point> seeds; 
     // refine the domain by a constrained delaunay triangulation 
     // c_bound used to bound minimun angle. 
     // sin(alpha_min) = sqrt(c_bound)
@@ -387,4 +396,75 @@ void cgalCircleSurf::cgalTriMesh(std::ifstream& fin)
     setMonoCompBdryZeroLength();
     if (consistent_interface(c_intfc) == NO)
         clean_up(ERROR);
+}
+
+void cgalParaSurf::getParaFromFile(std::ifstream& fin) {
+    if (!findAndLocate(fin, "Enter the height of the canopy:"))
+        clean_up(ERROR);
+    fin >> height;
+    std::cout << height << std::endl;
+    if (!findAndLocate(fin, "Enter the center of the canopy:"))
+        clean_up(ERROR);
+    fin >> cen[0] >> cen[1];
+    std::cout << cen[0] << " " << cen[1] << std::endl;
+    if (!findAndLocate(fin, "Enter the radius of the canopy:"))
+        clean_up(ERROR);
+    fin >> radius;
+    std::cout << radius << std::endl;
+    if (findAndLocate(fin,
+                "Enter the coefficient for restricting triangular size:"))
+    fin >> k_dx;
+    std::cout << k_dx << std::endl;
+    if (findAndLocate(fin, "Enter the bound for restricting minimum angle:"))
+        fin >> c_bound;
+    std::cout << c_bound << std::endl;
+    if (findAndLocate(fin, "Enter the number of constraint point on circle:"))
+        fin >> num_reg_const;
+    std::cout << num_reg_const << std::endl;
+    if (!findAndLocate(fin, "Enter the number of gores:"))
+	std::runtime_error("Must specify the number of gores!\n"); 
+    fin >> num_lines; 
+}
+
+void cgalParaSurf::addCgalConst() {
+    double theta = 2 * PI / num_reg_const;
+    Vertex_handle v1, v2;
+    std::vector<std::pair<double, double>> regConPoint;
+  
+    for (int i = 0; i < num_reg_const; i++)
+         regConPoint.push_back(std::make_pair(cen[0] + radius * cos(i * theta),
+		cen[1] + radius * sin(i * theta)));
+    regConPoint.push_back(std::make_pair(cen[0] + radius, cen[1]));
+    for (int i = 0; i < num_reg_const; i++)
+    {
+         v1 = cdt.insert(Cgal_Point(regConPoint[i].first, 
+		regConPoint[i].second));
+         v2 = cdt.insert(Cgal_Point(regConPoint[i+1].first, 
+		regConPoint[i+1].second));
+         cdt.insert_constraint(v1, v2);
+    }
+    theta = 2 * PI / num_lines;
+
+    std::vector<std::pair<double, double>> vertex; 
+
+    vertex.push_back(std::make_pair(cen[0], cen[1])); 
+    for (int i = 0; i < num_lines; i++) 
+	 vertex.push_back(std::make_pair(cen[0] + radius * cos((i+0.5) * theta)
+		, cen[1] + radius * sin((i+0.5) * theta)));  
+		
+    v1 = cdt.insert(Cgal_Point(vertex[0].first, vertex[0].second));
+    for (int i = 1; i < num_lines + 1; i++) {
+         v2 = cdt.insert(Cgal_Point(vertex[i].first, vertex[i].second)); 
+         cdt.insert_constraint(v1, v2);
+    }
+    
+    std::ofstream fout("points.txt"); 
+
+    for (int i = 0; i < num_lines + 1; i++) {
+	 fout << vertex[i].first << ' ' << vertex[i].second << ' ' << 5 
+		<< std::endl; 
+    }
+    for (int i = 0; i < num_lines + 1; i++) {
+         fout << 0 << ' ' << i + 1 << std::endl;
+    }
 }

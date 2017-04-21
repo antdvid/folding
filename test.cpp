@@ -65,7 +65,7 @@ int main(int argc, char** argv)
 	folder->setInputFile(inname);
         fin.close(); 
 	//set folding movie
-	folder->setupMovie("fold_movie", OutName(&front), 0.01);
+	folder->setupMovie("fold_movie", OutName(&front), 0.05);
 
 	//set numerical scheme for ode EXPLICIT or IMPLICIT
         folder->setOdeScheme(SpringSolver::IMPLICIT);
@@ -166,6 +166,9 @@ void initFabric(Front* front, std::ifstream& fin, SURFACE* &surf) {
                 case 'C' :
 		case 'c' : crs = new cgalCircleSurf(front->interf, &surf);
 			   break; 
+		case 'P' :
+		case 'p' : crs = new cgalParaSurf(front->interf, &surf); 
+			   break;  
 		default : std::cout << "Unknown fabric shape\n"; 
 			  clean_up(ERROR);
 	    }

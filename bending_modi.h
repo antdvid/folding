@@ -1,41 +1,39 @@
 #include <FronTier.h>
 #include "spring_solver.h"
+#include <unordered_map>
+#include <tuple>
 
 class BendingForce: public SpringSolver::ExtForceInterface
 {
     void calculateBendingForce3d2003(POINT* p1, TRI* t1, TRI* t2);
     void calculateBendingForce3d2006(POINT* p1, TRI* t1, TRI* t2);
-    void calculateBendingForce3dparti(POINT*, TRI*, TRI*);
+protected: 
     INTERFACE* intfc;
     // bend stiffness
     double bends; 
     // bend damping
-    double bendd;
-    // specify which method to be used
-    // 0: 2003
-    // 1: 2006
-    // 2: particle
-    // default particle 
-    int index; 
+    double bendd; 
     void clear_surf_point_force(SURFACE*);
-    static const int num = 3; 
-    // pointer to member function
-    void (BendingForce::*method[num])(POINT*,TRI*, TRI*); 
 public: 
     double* getExternalForce(SpringVertex* sv);
-    double calOriLeng(int, int, TRI*, TRI*);
-    void computeExternalForce();
+    virtual void computeExternalForce();
     void getParaFromFile(const char*); 
     double& getBendStiff() { return bends; }
     double& getBendDamp() { return bendd; }
-    int methodIndex() { return index; }
-    BendingForce(INTERFACE* _intfc, double s = 0.01, double d = 0.0); 
-    
+    BendingForce(INTERFACE* _intfc, double s = 0.0, double d = 0.0) : 
+		intfc(_intfc) { bends = s; bendd = d; }
 };
-/*
+
 class particleBending : public BendingForce {
-    
+    std::unordered_map<POINT*, std::tuple<double, double, double>>;  
+    void buildMap();    
+public : 
+    particleBending(INTERFACE* intfc, double s = 0.0, double d = 0.0) : 
+		BendingForce(intfc, s, d) {
+	buildMap(); 
+    } 
+    virtual void computeExternalForce(); 
 }
 
-*/
+
 

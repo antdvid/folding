@@ -315,7 +315,7 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
 			 const std::vector<std::vector<int>>& creases,
 			 const std::vector<double>& angles)
 {
-    m_t = 1.4;
+    m_t = 1000;
     m_opt = NULL;
     std::unordered_map<int, Vertex*> vertex_map;
     if (creases.size() != angles.size())

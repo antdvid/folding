@@ -886,8 +886,10 @@ void RelaxDrag::preprocess(std::vector<SpringVertex*>& pts)
 	    }
 	}
     }
+    /*
     for (int i = 0; i < 6; ++i)
 	b_pts[i]->setRegistered();
+    */
 }
 
 //SeparateDrag
