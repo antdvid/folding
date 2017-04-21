@@ -3,26 +3,14 @@
 #include <iomanip>
 #include <algorithm>
 #include <set>
-#include <unordered_map>
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
 #include "bending.h"
-#include<../iFluid/ifluid_state.h>
 
 static void DebugShow(const double&);
 bool findAndLocate(std::ifstream&, const char*);
 bool getString(std::ifstream&, const char*);
-
-BendingForce::BendingForce(INTERFACE* _intfc, double s, double d) : 
-	intfc(_intfc) {
-    bends = s; 
-    bendd = d; 
-    index = 2; 
-    method[0] = &BendingForce::calculateBendingForce3d2003; 
-    method[1] = &BendingForce::calculateBendingForce3d2006; 
-    method[2] = &BendingForce::calculateBendingForce3dparti; 
-}
 
 void BendingForce::getParaFromFile(const char* inname)
 {
@@ -34,177 +22,64 @@ void BendingForce::getParaFromFile(const char* inname)
 	    clean_up(ERROR);
 	}
 	if (!findAndLocate(fin, "Enter fabric bend stiffness constant:"))
-            bends = 0.0; 
+            getBendStiff() = 0.0; 
 	else 
-	    fin >> bends; 
-	std::cout << bends << std::endl; 
+	    fin >> getBendStiff(); 
+	std::cout << getBendStiff() << std::endl; 
 	if (!findAndLocate(fin, "Enter fabric bend damping constant:"))
-            bendd = 0.0; 
+            getBendDamp() = 0.0; 
         else 
-	    fin >> bendd;
-        std::cout << bendd << std::endl;
-        if (!findAndLocate(fin, "Enter bending method index:"))
-	    index = 2; 
-	else
-	    fin >> index; 
-        std::cout << index << std::endl; 
+	    fin >> getBendDamp();
+        std::cout << getBendDamp() << std::endl;
+
 	fin.close(); 
 }
 
 double* BendingForce::getExternalForce(SpringVertex* sv) 
 {
-    	return (static_cast<POINT*>(sv->org_vtx))->force;
+    	return ((POINT*)(sv->org_vtx))->force;
 }
 
 void BendingForce::computeExternalForce()
 {
         SURFACE **surf;
         TRI *tri;
-        std::unordered_map<POINT*, int> mymap; 
 
         intfc_surface_loop(intfc, surf)
         {
             if (wave_type(*surf) != ELASTIC_BOUNDARY) continue;
             if (is_bdry(*surf)) continue;
             clear_surf_point_force(*surf);
-/*
-            surf_tri_loop(*surf, tri) {
-		double test[3] = {0.0}; 
-		for (int i = 0; i < 3; i++) {
-		     POINT* p = Point_of_tri(tri)[i]; 
-		     if (distance_between_positions(p->force, test, 3) > 1.0e-6)
-			 std::cout << p << std::endl; 
-		}
-	    }
-*/
             surf_tri_loop(*surf, tri)
             {
-                if (wave_type(*surf) != ELASTIC_BOUNDARY) continue;
-                if (is_bdry(*surf)) continue;
                 for (int i = 0; i < 3; ++i)
                 {
                     POINT *p1 = Point_of_tri(tri)[i];
-	            
+		    POINT *p2 = Point_of_tri(tri)[(i+1)%3];
+		    POINT *p3 = Point_of_tri(tri)[(i+2)%3];
+
 		    sorted(p1) = NO;
                     TRI* n_tri = Tri_on_side(tri, (i+1)%3);
-		    if (is_side_bdry(tri, (i+1)%3)) continue; 
-                    //calculateBendingForce3d2003(p1, tri, n_tri);
+		    if (Boundary_point(p2) && Boundary_point(p3)) {
+                    std::set<POINT*> pointset; 
+		    pointset.insert(Point_of_tri(n_tri)[0]); 
+		    pointset.insert(Point_of_tri(n_tri)[1]); 
+		    pointset.insert(Point_of_tri(n_tri)[2]); 
+		    if (pointset.find(p2) == pointset.end() ||
+			pointset.find(p3) == pointset.end())
+		        continue; 
+		    }
+
+                    calculateBendingForce3d2003(p1, tri, n_tri);
                     //calculateBendingForce3d2006(p1, tri, n_tri);
-                    //calculateBendingForce3dparti(p1, p_n, index1, index2, 
-			//	tri, n_tri);
-		    mymap[p1]++; 
-	            (this->*method[methodIndex()])(p1, tri, n_tri); 
                 }
             }
         }
-/*	
-	for (auto it : mymap) {
-	     std::cout << "point: " << it.first << ' ' << Coords(it.first)[0] 
-		<< ' ' << Coords(it.first)[1] << ' ' 
-		<< Coords(it.first) << std::endl; 
-	     std::cout << "number: " << it.second << std::endl; 
-        }
-
-            intfc_surface_loop(intfc, surf) {
-		if (wave_type(*surf) != ELASTIC_BOUNDARY) continue; 
-		if (is_bdry(*surf)) continue; 
-		surf_tri_loop(*surf, tri) {
-		    for (int i = 0; i < 3; i++) {
-			 POINT* p = Point_of_tri(tri)[i]; 
-			 if (!Boundary_point(p)) continue; 
-			 if (sorted(p)) continue; 
-
-			 std::cout << "position: " << Coords(p)[0] << ' ' << 
-			     Coords(p)[1] << ' ' << Coords(p)[2] << std::endl; 
-			 std::cout << "force: " << p->force[0] << ' ' << 
-			     p->force[1] << ' ' << p->force[2] << std::endl; 
-			 sorted(p) = YES; 
-		    }
-		}
-	    }
-*/
-
 }       /* setBendingForce3d */
 
 static void DebugShow(const double & sva)
 {
 	std::cout << std::setw(20) << sva << " ";
-}
-
-double BendingForce::calOriLeng(int index1, int index2, TRI* tri, TRI* n_tri) {
-    double c = tri->side_length0[(index1+1)%3]; 
-    double b1 = tri->side_length0[index1]; 
-    double a1 = tri->side_length0[3-index1-(index1+1)%3]; 
-    double a2, b2; 
-    POINT* p1 = Point_of_tri(tri)[(index1+1)%3]; 
-    int pInN; 
-
-    for (int i = 0; i < 3; i++) 
-	 if (Point_of_tri(n_tri)[i] == p1) {
-	     pInN = i; 
-	     break; 
-	 }
-    if (pInN < index2 || pInN > index2 && pInN == 2) {
-        b2 = n_tri->side_length0[pInN]; 
-        a2 = n_tri->side_length0[index2]; 
-    }
-    else {
-	b2 = n_tri->side_length0[index2]; 
-	a2 = n_tri->side_length0[3-index2-pInN]; 
-    }
-
-    double cangle1 = (sqr(a1) + sqr(c) - sqr(b1)) / (2 * a1 * c);
-    double cangle2 = (sqr(a2) + sqr(c) - sqr(b2)) / (2 * a2 * c); 
-    double sangle1 = sqrt(1 - std::min(sqr(cangle1), 1.0)); 
-    double sangle2 = sqrt(1 - std::min(sqr(cangle2), 1.0));
-    double cangle = cangle1 * cangle2 - sangle1 * sangle2; 
-    
-    return sqrt(sqr(a1) + sqr(a2) - 2 * cangle * a1 * a2); 
-}
-void BendingForce::calculateBendingForce3dparti(POINT* p1, 
-		TRI* tri, TRI* n_tri) {
-        int index1, index2; 
-        std::set<POINT*> pointset; 
-
-        for (int i = 0; i < 3; i++) {
-	     if (Point_of_tri(tri)[i] == p1) 
-		 index1 = i; 
-	     pointset.insert(Point_of_tri(tri)[i]); 
-	}
- 
-	POINT* p2; 
-
-        for (int i = 0; i < 3; i++) 
-	     if (pointset.find(Point_of_tri(n_tri)[i]) == pointset.end()) {
-		 p2 = Point_of_tri(n_tri)[i]; 
-		 index2 = i; 
-		 break; 
-	     }
-        
-        double length0 = calOriLeng(index1, index2, tri, n_tri); 
-	double length = separation(p1, p2, 3);
-	STATE* state = static_cast<STATE*>(left_state(p1));
-	double *vel1 = state->vel; 
-	state = static_cast<STATE*>(left_state(p2)); 
-	double *vel2 = state->vel;  
-/*
-	std::cout << "p1: " << p1 << std::endl; 
-	std::cout << "p2: " << p2 << std::endl; 
-	std::cout << std::setprecision(16) << "length: " << length << ' ' << "length0: " << std::setprecision(16) << length0 << std::endl; 
-*/
-	double velr[3] = {0.0}; 
-	double dir[3] = {0.0}; 
-
-	for (int i = 0; i < 3; i++) {
-	     velr[i] = vel2[i] - vel1[i]; 
-	     dir[i] = Coords(p2)[i] - Coords(p1)[i]; 
-	} 
-	for (int i = 0; i < 3; i++) 
-	     dir[i] /= length; 
-	for (int i = 0; i < 3; i++) {
-	     p1->force[i] += bends * (length - length0) * dir[i]; 
-	     p1->force[i] += bendd * velr[i]; 
-	}
 }
 
 void BendingForce::calculateBendingForce3d2003(
@@ -471,8 +346,37 @@ void BendingForce::clear_surf_point_force(SURFACE* surf)
             {
                 POINT *p = Point_of_tri(tri)[i];
                 for (int j = 0; j < 3; ++j)
-                    p->force[j] = 0.0;
+                    p->force[i] = 0.0;
             }
         }
 }       /* clear_surf_point_force */
 
+void particleBending::buildMap() {
+    SURFACE** surf; 
+    TRI* tri; 
+
+    intfc_surface_loop(intfc, surf) {
+	if ((*surf) == ELASTIC_BOUNDARY) continue; 
+	if (is_bdry(*surf)) continue; 
+	surf_tri_loop(*surf, tri) {
+	    for (int i = 0; i < 3; i++)
+	         sorted(Point_of_tri(tri)[i]) = NO; 
+        }
+    }
+    intfc_surface_loop(intfc, surf) {
+	if ((*surf) == ELASTIC_BOUNDARY) continue;
+        if (is_bdry(*surf)) continue;
+        surf_tri_loop(*surf, tri) {
+	    for (int i = 0; i < 3; i++) {
+		 POINT* p = Point_of_tri(tri)[i]; 
+		 
+		 if (sorted(p)) continue; 
+
+		 TRI* n_tri = Tri_on_side(tri, (i+1)%3); 
+
+		 for ()
+	    }
+        }
+    }
+
+}

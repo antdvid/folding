@@ -11,8 +11,8 @@ struct SpringVertex
     double* x; //pointing to Point->x
     double* v; //pointing to left_state(Point)->vel
     void* org_vtx;//pointing to external point
-    double accel[3];
-    double ext_accel[3];
+    double accel[3] = {0};
+    double ext_accel[3] = {0};
     std::vector<size_t> index_nb;
     std::vector<double> length0; 
     bool is_registered;

@@ -133,11 +133,11 @@ void Folder3d::doFolding() {
     
     //default bend coefficient and bend damping coefficient is 
     //0.01 and 0.0
-    /*BendingForce* btemp = new BendingForce(m_intfc); 
+    BendingForce* btemp = new BendingForce(m_intfc); 
     std::string temp(getInputFile()); 
 
     btemp->getParaFromFile(temp.c_str()); 
-    sp_solver->ext_forces.push_back(btemp);*/
+    sp_solver->ext_forces.push_back(btemp);
     
     Drag::setTolerance(m_intfc->table->rect_grid.h[0]*0.5);
     Drag::setThickness(0.001);
@@ -211,7 +211,7 @@ void Folder3d::doFolding(
     	sp_solver->solve(dt);
 	
 	recordData(t,movie->out_dir);
-
+        
 	//cd_solver->resolveCollision();
 
 	t += dt;
@@ -465,3 +465,4 @@ void Folder3d::straightenStrings() {
         }
    }
 }
+
