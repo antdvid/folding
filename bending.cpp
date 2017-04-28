@@ -199,8 +199,9 @@ void BendingForce::calculateBendingForce3dparti(POINT* p1,
 	     velr[i] = vel2[i] - vel1[i]; 
 	     dir[i] = Coords(p2)[i] - Coords(p1)[i]; 
 	} 
-	for (int i = 0; i < 3; i++) 
-	     dir[i] /= length; 
+        if (length > 1.0e-10)
+	    for (int i = 0; i < 3; i++) 
+	         dir[i] /= length; 
 	for (int i = 0; i < 3; i++) {
 	     p1->force[i] += bends * (length - length0) * dir[i]; 
 	     p1->force[i] += bendd * velr[i]; 

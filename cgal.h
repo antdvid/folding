@@ -27,7 +27,6 @@ bool findAndLocate(std::ifstream&, const char*);
 
 class cgalSurf
 {
-protected :    
     INTERFACE* c_intfc;
     SURFACE** c_surf; 
     CDT cdt; 
@@ -37,6 +36,24 @@ protected :
     double c_bound; 
     double height; 
     std::vector<double> extConPoint;
+protected :
+    void setHeight(double h) { height = h; } 
+    double readHeight() const { return height; }
+    void setCGALCoeffRestricSize(double k) { k_dx = k; }
+    double readCGALCoeffRestricSize() const { return k_dx; }
+    void setCGALMinAngleUb(double c) { c_bound = c; }
+    double readCGALMinAngleUb() const { return c_bound; }
+    Vertex_handle insertPointToCDT(Cgal_Point a) { return cdt.insert(a); }
+    void insertConstraintToCDT(Vertex_handle v1, Vertex_handle v2) { 
+	cdt.insert_constraint(v1, v2); }
+    CDT readCDT() const { return cdt; }
+    CDT& readCDT() { return cdt; }
+    std::vector<double> readExtConPoint() const { return extConPoint; }
+    void setExtConPoint(double p, int index) { extConPoint[index] = p; }
+    INTERFACE* readIntface() { return c_intfc; }
+    int readNumFinFace() const { return num_finite_face; }
+    void setNumFinFace(int num) { num_finite_face = num; }
+    SURFACE** readSurface() { return c_surf; }
 public :
     // std::ifstream& can't be used in constructor
     // any constructor involving it been added =delete in the end
@@ -58,7 +75,6 @@ public :
 
 class cgalRectangleSurf : public cgalSurf
 {
-private :
     double lower[2]; 
     double upper[2]; 
 public :
@@ -72,11 +88,17 @@ public :
 
 class cgalCircleSurf : public cgalSurf
 {
-protected : 
     double cen[2]; 
     double radius; 
     int num_reg_const;
     static const double eps;
+protected : 
+    double* getCenter() { return cen; }
+    void setCenter(double c1, double c2) { cen[0] = c1; cen[1] = c2; }
+    double getRadius() const { return radius; }
+    void setRadius(double r) { radius = r; }
+    int getNumRegConst() const { return num_reg_const; }
+    void setNumRegConst(int num) { num_reg_const = num; } 
 public : 
     cgalCircleSurf(INTERFACE* intfc, SURFACE** surf) : 
 		cgalSurf(intfc, surf) { num_reg_const = 150; }

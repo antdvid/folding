@@ -104,12 +104,12 @@ void cgalSurf::cgalGenSurf()
     set_current_interface(c_intfc);
     newsurf  = make_surface(neg_comp, pos_comp, NULL, NULL);
 
-    int num_vtx = cdt.number_of_vertices();
+    int num_vtx = readCDT().number_of_vertices();
     double* vertex = new double [3*num_vtx];
     std::vector<size_t> index;
 
-    for (i = 0, vit = cdt.finite_vertices_begin();
-                vit != cdt.finite_vertices_end(); vit++, i++)
+    for (i = 0, vit = readCDT().finite_vertices_begin();
+                vit != readCDT().finite_vertices_end(); vit++, i++)
     {
          vit->info() = i;
          index.push_back(i);
@@ -132,8 +132,8 @@ void cgalSurf::cgalGenSurf()
     TRI** tris;
 
     uni_array(&tris, num_tris, sizeof(TRI*));
-    for (i = 0, fit = cdt.finite_faces_begin();
-                fit != cdt.finite_faces_end(); fit++, i++)
+    for (i = 0, fit = readCDT().finite_faces_begin();
+                fit != readCDT().finite_faces_end(); fit++, i++)
     {
          size_t i1 = index[fit->vertex(0)->info()];
          size_t i2 = index[fit->vertex(1)->info()];
@@ -204,8 +204,12 @@ void cgalRectangleSurf::getParaFromFile(std::ifstream& fin)
 {
     if (!findAndLocate(fin, "Enter the height of the plane:"))
         clean_up(ERROR);
-    fin >> height;
-    std::cout << height << std::endl;
+     
+    double h;
+ 
+    fin >> h;
+    setHeight(h); 
+    std::cout << readHeight() << std::endl;
     if (!findAndLocate(fin, "Enter lower bounds of the rectangle:"))
         clean_up(ERROR);
     fin >> lower[0] >> lower[1];
@@ -215,12 +219,20 @@ void cgalRectangleSurf::getParaFromFile(std::ifstream& fin)
     fin >> upper[0] >> upper[1];
     std::cout << upper[0] << " " << upper[1] << std::endl;
     if (findAndLocate(fin,
-                "Enter the coefficient for restricting triangular size:"))
-    fin >> k_dx;
-    std::cout << k_dx << std::endl;
-    if (findAndLocate(fin, "Enter the bound for restricting minimum angle:"))
-	fin >> c_bound; 
-    std::cout << c_bound << std::endl; 
+                "Enter the coefficient for restricting triangular size:")) {
+	double k; 
+
+        fin >> k;
+	setCGALCoeffRestricSize(k); 
+    }
+    std::cout << readCGALCoeffRestricSize() << std::endl;
+    if (findAndLocate(fin, "Enter the bound for restricting minimum angle:")) {
+	double c; 
+
+	fin >> c;
+	setCGALMinAngleUb(c); 
+    } 
+    std::cout << readCGALMinAngleUb() << std::endl; 
 }
 
 void cgalRectangleSurf::addCgalConst()
@@ -228,20 +240,22 @@ void cgalRectangleSurf::addCgalConst()
     Vertex_handle v1, v2, v3, v4;
 
     // add regular constraint
-    v1 = cdt.insert(Cgal_Point(lower[0], lower[1]));
-    v2 = cdt.insert(Cgal_Point(upper[0], lower[1]));
-    v3 = cdt.insert(Cgal_Point(upper[0], upper[1]));
-    v4 = cdt.insert(Cgal_Point(lower[0], upper[1]));
-    cdt.insert_constraint(v1, v2);
-    cdt.insert_constraint(v2, v3);
-    cdt.insert_constraint(v3, v4);
-    cdt.insert_constraint(v4, v1);
+    v1 = insertPointToCDT(Cgal_Point(lower[0], lower[1]));
+    v2 = insertPointToCDT(Cgal_Point(upper[0], lower[1]));
+    v3 = insertPointToCDT(Cgal_Point(upper[0], upper[1]));
+    v4 = insertPointToCDT(Cgal_Point(lower[0], upper[1]));
+    insertConstraintToCDT(v1, v2);
+    insertConstraintToCDT(v2, v3);
+    insertConstraintToCDT(v3, v4);
+    insertConstraintToCDT(v4, v1);
     // add extra constraint
-    for (size_t i = 0 ; i < extConPoint.size(); i += 4)
+    for (size_t i = 0 ; i < readExtConPoint().size(); i += 4)
     {
-	 v1 = cdt.insert(Cgal_Point(extConPoint[i], extConPoint[i+1]));
-         v2 = cdt.insert(Cgal_Point(extConPoint[i+2], extConPoint[i+3]));
-         cdt.insert_constraint(v1, v2); 
+	 v1 = insertPointToCDT(Cgal_Point(readExtConPoint()[i], 
+		readExtConPoint()[i+1]));
+         v2 = insertPointToCDT(Cgal_Point(readExtConPoint()[i+2], 
+		readExtConPoint()[i+3]));
+         insertConstraintToCDT(v1, v2); 
     }
 }
 
@@ -255,22 +269,28 @@ void cgalRectangleSurf::cgalTriMesh(std::ifstream& fin)
     getExtraConstPoint(fin); 
     addCgalConst(); 
 
-    double cri_dx = k_dx * c_intfc->table->rect_grid.h[0];
+    double cri_dx = readCGALCoeffRestricSize() * 
+		readIntface()->table->rect_grid.h[0];
 
     // refine the domain by a constrained delaunay triangulation 
     // c_bound used to bound minimun angle. 
     // sin(alpha_min) = sqrt(c_bound)
     //cri_dx used to bound triangle edge size
-    CGAL::refine_Delaunay_mesh_2(cdt, seeds.begin(), seeds.end(),
-                Criteria(c_bound, cri_dx));
-    for (fit = cdt.finite_faces_begin(); fit != cdt.finite_faces_end(); fit++)
-         num_finite_face++; 
+    CGAL::refine_Delaunay_mesh_2(readCDT(), seeds.begin(), seeds.end(), 
+		Criteria(readCGALMinAngleUb(), cri_dx));
+
+    int num = readNumFinFace(); 
+
+    for (fit = readCDT().finite_faces_begin(); 
+		fit != readCDT().finite_faces_end(); fit++) 
+         num++; 
+    setNumFinFace(num); 
     cgalGenSurf();
-    wave_type(*c_surf) = ELASTIC_BOUNDARY;
-    FT_InstallSurfEdge(*c_surf, MONO_COMP_HSBDRY);
+    wave_type(*readSurface()) = ELASTIC_BOUNDARY;
+    FT_InstallSurfEdge(*readSurface(), MONO_COMP_HSBDRY);
     setSurfZeroMesh();
     setMonoCompBdryZeroLength();
-    if (consistent_interface(c_intfc) == NO)
+    if (consistent_interface(readIntface()) == NO)
         clean_up(ERROR);
 }
 
@@ -290,8 +310,11 @@ void cgalCircleSurf::getParaFromFile(std::ifstream& fin)
 {
     if (!findAndLocate(fin, "Enter the height of the plane:"))
         clean_up(ERROR);
-    fin >> height;
-    std::cout << height << std::endl;
+    double h; 
+
+    fin >> h;
+    setHeight(h); 
+    std::cout << readHeight() << std::endl;
     if (!findAndLocate(fin, "Enter the center of the circle:"))
         clean_up(ERROR);
     fin >> cen[0] >> cen[1];
@@ -301,12 +324,20 @@ void cgalCircleSurf::getParaFromFile(std::ifstream& fin)
     fin >> radius;
     std::cout << radius << std::endl;
     if (findAndLocate(fin,
-                "Enter the coefficient for restricting triangular size:"))
-    fin >> k_dx;
-    std::cout << k_dx << std::endl;
-    if (findAndLocate(fin, "Enter the bound for restricting minimum angle:"))
-        fin >> c_bound;
-    std::cout << c_bound << std::endl;
+                "Enter the coefficient for restricting triangular size:")) {
+        double k; 
+
+        fin >> k;
+	setCGALCoeffRestricSize(k); 
+    }
+    std::cout << readCGALCoeffRestricSize() << std::endl;
+    if (findAndLocate(fin, "Enter the bound for restricting minimum angle:")) {
+	double c; 
+
+        fin >> c;
+	setCGALMinAngleUb(c); 
+    }
+    std::cout << readCGALMinAngleUb() << std::endl;
     if (findAndLocate(fin, "Enter the number of constraint point on circle:"))
 	fin >> num_reg_const; 
     std::cout << num_reg_const << std::endl;
@@ -328,27 +359,28 @@ void cgalCircleSurf::addCgalConst()
     regConPoint.push_back(cen[1]);
     for (int i = 0; i < 2*num_reg_const; i += 2)
     {
-	 v1 = cdt.insert(Cgal_Point(regConPoint[i], regConPoint[i+1]));
-         v2 = cdt.insert(Cgal_Point(regConPoint[i+2], regConPoint[i+3])); 
-         cdt.insert_constraint(v1, v2); 
+	 v1 = insertPointToCDT(Cgal_Point(regConPoint[i], regConPoint[i+1]));
+         v2 = insertPointToCDT(Cgal_Point(regConPoint[i+2], regConPoint[i+3])); 
+         insertConstraintToCDT(v1, v2); 
     }
     // a test for considering C9 gore
     theta = 2 * PI / 28; 
-    v1 = cdt.insert(Cgal_Point(cen[0], cen[1]));
+    v1 = insertPointToCDT(Cgal_Point(cen[0], cen[1]));
     for (int i = 0; i < 28; i++) { 
-	 v2 = cdt.insert(Cgal_Point(cen[0] + radius * cos((i+0.5) * theta), 
-		cen[1] + radius * sin((i+0.5) * theta))); 
-	 cdt.insert_constraint(v1, v2); 
+	 v2 = insertPointToCDT(Cgal_Point(cen[0] + 
+		radius * cos((i+0.5) * theta), cen[1] + 
+		radius * sin((i+0.5) * theta))); 
+	 insertConstraintToCDT(v1, v2); 
     }
     // add extra constraint
     // some extra constraint points which are very close
     // to certain regular constraint point were meant to be it
-    for (size_t i = 0; i < extConPoint.size(); i += 2)
+    for (size_t i = 0; i < readExtConPoint().size(); i += 2)
     {
 	 double pe[2];
 
-	 pe[0] = extConPoint[i]; 
-	 pe[1] = extConPoint[i+1];
+	 pe[0] = readExtConPoint()[i]; 
+	 pe[1] = readExtConPoint()[i+1];
          for (size_t j = 0; j < regConPoint.size(); j += 2)
          {
 	      double pr[2]; 
@@ -357,16 +389,18 @@ void cgalCircleSurf::addCgalConst()
 	      pr[1] = regConPoint[j+1]; 
 	      if (distance(pe, pr, 2) < eps)
 	      {		  
-		  extConPoint[i] = regConPoint[j]; 
-		  extConPoint[i+1] = regConPoint[j+1];
+		  setExtConPoint(regConPoint[j], i); 
+		  setExtConPoint(regConPoint[j+1], i+1);
 	      }
          }
     }
-    for (size_t i = 0; i < extConPoint.size(); i += 4)
+    for (size_t i = 0; i < readExtConPoint().size(); i += 4)
     {
-	 v1 = cdt.insert(Cgal_Point(extConPoint[i], extConPoint[i+1]));
-         v2 = cdt.insert(Cgal_Point(extConPoint[i+2], extConPoint[i+3]));      
-         cdt.insert_constraint(v1, v2);
+	 v1 = insertPointToCDT(Cgal_Point(readExtConPoint()[i], 
+			readExtConPoint()[i+1]));
+         v2 = insertPointToCDT(Cgal_Point(readExtConPoint()[i+2], 
+			readExtConPoint()[i+3])); 
+         insertConstraintToCDT(v1, v2);
     }
 }
 
@@ -379,90 +413,108 @@ void cgalCircleSurf::cgalTriMesh(std::ifstream& fin)
     getExtraConstPoint(fin);
     addCgalConst();
 
-    double cri_dx = k_dx * c_intfc->table->rect_grid.h[0];
+    double cri_dx = readCGALCoeffRestricSize() * 
+		readIntface()->table->rect_grid.h[0];
     std::list<Cgal_Point> seeds; 
     // refine the domain by a constrained delaunay triangulation 
     // c_bound used to bound minimun angle. 
     // sin(alpha_min) = sqrt(c_bound)
     // cri_dx used to bound triangle edge size
-    CGAL::refine_Delaunay_mesh_2(cdt, seeds.begin(), seeds.end(),
-                Criteria(c_bound, cri_dx));
-    for (fit = cdt.finite_faces_begin(); fit != cdt.finite_faces_end(); fit++)
-         num_finite_face++;
+    CGAL::refine_Delaunay_mesh_2(readCDT(), seeds.begin(), seeds.end(),
+                Criteria(readCGALMinAngleUb(), cri_dx));
+
+    int num = readNumFinFace(); 
+
+    for (fit = readCDT().finite_faces_begin(); 
+		fit != readCDT().finite_faces_end(); fit++)
+         num++;
+    setNumFinFace(num); 
     cgalGenSurf();
-    wave_type(*c_surf) = ELASTIC_BOUNDARY;
-    FT_InstallSurfEdge(*c_surf, MONO_COMP_HSBDRY);
+    wave_type(*readSurface()) = ELASTIC_BOUNDARY;
+    FT_InstallSurfEdge(*readSurface(), MONO_COMP_HSBDRY);
     setSurfZeroMesh();
     setMonoCompBdryZeroLength();
-    if (consistent_interface(c_intfc) == NO)
+    if (consistent_interface(readIntface()) == NO)
         clean_up(ERROR);
 }
 
 void cgalParaSurf::getParaFromFile(std::ifstream& fin) {
     if (!findAndLocate(fin, "Enter the height of the canopy:"))
         clean_up(ERROR);
-    fin >> height;
-    std::cout << height << std::endl;
+    
+    int h; 
+
+    fin >> h;
+    setHeight(h); 
+    std::cout << readHeight() << std::endl;
     if (!findAndLocate(fin, "Enter the center of the canopy:"))
         clean_up(ERROR);
-    fin >> cen[0] >> cen[1];
-    std::cout << cen[0] << " " << cen[1] << std::endl;
+    
+    double c1, c2; 
+
+    fin >> c1 >> c2;
+    setCenter(c1, c2); 
+    std::cout << getCenter()[0] << " " << getCenter()[1] << std::endl;
     if (!findAndLocate(fin, "Enter the radius of the canopy:"))
         clean_up(ERROR);
-    fin >> radius;
-    std::cout << radius << std::endl;
+    double r; 
+
+    fin >> r;
+    setRadius(r); 
+    std::cout << getRadius() << std::endl;
     if (findAndLocate(fin,
-                "Enter the coefficient for restricting triangular size:"))
-    fin >> k_dx;
-    std::cout << k_dx << std::endl;
-    if (findAndLocate(fin, "Enter the bound for restricting minimum angle:"))
-        fin >> c_bound;
-    std::cout << c_bound << std::endl;
-    if (findAndLocate(fin, "Enter the number of constraint point on circle:"))
-        fin >> num_reg_const;
-    std::cout << num_reg_const << std::endl;
+                "Enter the coefficient for restricting triangular size:")) {
+	double k;
+ 
+        fin >> k;
+	setCGALCoeffRestricSize(k); 
+    }
+    std::cout << readCGALCoeffRestricSize() << std::endl;
+    if (findAndLocate(fin, "Enter the bound for restricting minimum angle:")) {
+	double c; 
+
+        fin >> c;
+	setCGALMinAngleUb(c); 
+    }
+    std::cout << readCGALMinAngleUb() << std::endl;
     if (!findAndLocate(fin, "Enter the number of gores:"))
 	std::runtime_error("Must specify the number of gores!\n"); 
     fin >> num_lines; 
 }
 
 void cgalParaSurf::addCgalConst() {
-    double theta = 2 * PI / num_reg_const;
+    setNumRegConst(num_lines * 5); 
+
+    double theta = 2 * PI / (getNumRegConst());
     Vertex_handle v1, v2;
+    Vertex_handle *v = new Vertex_handle [getNumRegConst()]; 
     std::vector<std::pair<double, double>> regConPoint;
   
-    for (int i = 0; i < num_reg_const; i++)
-         regConPoint.push_back(std::make_pair(cen[0] + radius * cos(i * theta),
-		cen[1] + radius * sin(i * theta)));
-    regConPoint.push_back(std::make_pair(cen[0] + radius, cen[1]));
-    for (int i = 0; i < num_reg_const; i++)
+    for (int i = 0; i < getNumRegConst(); i++)
+         regConPoint.push_back(std::make_pair(getCenter()[0] + 
+		getRadius() * cos(i * theta), getCenter()[1] + 
+		getRadius() * sin(i * theta)));
+    regConPoint.push_back(std::make_pair(getCenter()[0] + getRadius(), 
+		getCenter()[1]));
+    for (int i = 0; i < getNumRegConst(); i++)
     {
-         v1 = cdt.insert(Cgal_Point(regConPoint[i].first, 
+         v1 = insertPointToCDT(Cgal_Point(regConPoint[i].first, 
 		regConPoint[i].second));
-         v2 = cdt.insert(Cgal_Point(regConPoint[i+1].first, 
+         v2 = insertPointToCDT(Cgal_Point(regConPoint[i+1].first, 
 		regConPoint[i+1].second));
-         cdt.insert_constraint(v1, v2);
+         insertConstraintToCDT(v1, v2);
+	 v[i] = v1; 
     }
-    theta = 2 * PI / num_lines;
-
-    std::vector<std::pair<double, double>> vertex; 
-
-    vertex.push_back(std::make_pair(cen[0], cen[1])); 
-    for (int i = 0; i < num_lines; i++) 
-	 vertex.push_back(std::make_pair(cen[0] + radius * cos((i+0.5) * theta)
-		, cen[1] + radius * sin((i+0.5) * theta)));  
-		
-    v1 = cdt.insert(Cgal_Point(vertex[0].first, vertex[0].second));
-    for (int i = 1; i < num_lines + 1; i++) {
-         v2 = cdt.insert(Cgal_Point(vertex[i].first, vertex[i].second)); 
-         cdt.insert_constraint(v1, v2);
+    v1 = insertPointToCDT(Cgal_Point(getCenter()[0], getCenter()[1]));
+    for (int i = 0; i < num_lines; i++) {
+         insertConstraintToCDT(v1, v[i*5]);
     }
-    
+    delete [] v; 
     std::ofstream fout("points.txt"); 
 
-    for (int i = 0; i < num_lines + 1; i++) {
-	 fout << vertex[i].first << ' ' << vertex[i].second << ' ' << 5 
-		<< std::endl; 
+    for (int i = 0; i < num_lines; i++) {
+	 fout << regConPoint[i*5].first << ' ' << regConPoint[i*5].second 
+		<< ' ' << 18 << std::endl; 
     }
     for (int i = 0; i < num_lines + 1; i++) {
          fout << 0 << ' ' << i + 1 << std::endl;
