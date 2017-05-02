@@ -3,16 +3,17 @@
 #include <iomanip>
 #include <algorithm>
 #include <set>
-#include <unordered_map>
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
+#include <stdexcept>
 #include "bending.h"
 #include<../iFluid/ifluid_state.h>
 
 static void DebugShow(const double&);
 bool findAndLocate(std::ifstream&, const char*);
 bool getString(std::ifstream&, const char*);
+static double divEx(double, double);
 
 BendingForce::BendingForce(INTERFACE* _intfc, double s, double d) : 
 	intfc(_intfc) {
@@ -60,23 +61,12 @@ void BendingForce::computeExternalForce()
 {
         SURFACE **surf;
         TRI *tri;
-        std::unordered_map<POINT*, int> mymap; 
 
         intfc_surface_loop(intfc, surf)
         {
             if (wave_type(*surf) != ELASTIC_BOUNDARY) continue;
             if (is_bdry(*surf)) continue;
             clear_surf_point_force(*surf);
-/*
-            surf_tri_loop(*surf, tri) {
-		double test[3] = {0.0}; 
-		for (int i = 0; i < 3; i++) {
-		     POINT* p = Point_of_tri(tri)[i]; 
-		     if (distance_between_positions(p->force, test, 3) > 1.0e-6)
-			 std::cout << p << std::endl; 
-		}
-	    }
-*/
             surf_tri_loop(*surf, tri)
             {
                 if (wave_type(*surf) != ELASTIC_BOUNDARY) continue;
@@ -88,47 +78,21 @@ void BendingForce::computeExternalForce()
 		    sorted(p1) = NO;
                     TRI* n_tri = Tri_on_side(tri, (i+1)%3);
 		    if (is_side_bdry(tri, (i+1)%3)) continue; 
-                    //calculateBendingForce3d2003(p1, tri, n_tri);
-                    //calculateBendingForce3d2006(p1, tri, n_tri);
-                    //calculateBendingForce3dparti(p1, p_n, index1, index2, 
-			//	tri, n_tri);
-		    mymap[p1]++; 
 	            (this->*method[methodIndex()])(p1, tri, n_tri); 
                 }
             }
         }
-/*	
-	for (auto it : mymap) {
-	     std::cout << "point: " << it.first << ' ' << Coords(it.first)[0] 
-		<< ' ' << Coords(it.first)[1] << ' ' 
-		<< Coords(it.first) << std::endl; 
-	     std::cout << "number: " << it.second << std::endl; 
-        }
-
-            intfc_surface_loop(intfc, surf) {
-		if (wave_type(*surf) != ELASTIC_BOUNDARY) continue; 
-		if (is_bdry(*surf)) continue; 
-		surf_tri_loop(*surf, tri) {
-		    for (int i = 0; i < 3; i++) {
-			 POINT* p = Point_of_tri(tri)[i]; 
-			 if (!Boundary_point(p)) continue; 
-			 if (sorted(p)) continue; 
-
-			 std::cout << "position: " << Coords(p)[0] << ' ' << 
-			     Coords(p)[1] << ' ' << Coords(p)[2] << std::endl; 
-			 std::cout << "force: " << p->force[0] << ' ' << 
-			     p->force[1] << ' ' << p->force[2] << std::endl; 
-			 sorted(p) = YES; 
-		    }
-		}
-	    }
-*/
-
 }       /* setBendingForce3d */
 
 static void DebugShow(const double & sva)
 {
 	std::cout << std::setw(20) << sva << " ";
+}
+
+static double divEx(double numerator, double denominator) {
+    if (fabs(denominator) < 1.0e-10)
+        throw std::overflow_error("Divide by zero exception!\n");
+    return numerator / denominator;
 }
 
 double BendingForce::calOriLeng(int index1, int index2, TRI* tri, TRI* n_tri) {
@@ -153,8 +117,21 @@ double BendingForce::calOriLeng(int index1, int index2, TRI* tri, TRI* n_tri) {
 	a2 = n_tri->side_length0[3-index2-pInN]; 
     }
 
-    double cangle1 = (sqr(a1) + sqr(c) - sqr(b1)) / (2 * a1 * c);
-    double cangle2 = (sqr(a2) + sqr(c) - sqr(b2)) / (2 * a2 * c); 
+    double cangle1, cangle2;
+
+    try {
+        cangle1 = divEx(sqr(a1) + sqr(c) - sqr(b1), (2 * a1 * c));
+    } catch (std::overflow_error e) {
+        std::cout << e.what() << " -> ";
+        return a2;
+    }
+    try {
+        cangle2 = divEx(sqr(a2) + sqr(c) - sqr(b2), (2 * a2 * c));
+    } catch (std::overflow_error e) {
+        std::cout << e.what() << " -> ";
+        return a1;
+    }
+
     double sangle1 = sqrt(1 - std::min(sqr(cangle1), 1.0)); 
     double sangle2 = sqrt(1 - std::min(sqr(cangle2), 1.0));
     double cangle = cangle1 * cangle2 - sangle1 * sangle2; 
