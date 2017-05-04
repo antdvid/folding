@@ -83,7 +83,7 @@ public :
     virtual void addCgalConst(); 
     virtual void cgalTriMesh(std::ifstream&); 
     virtual void getParaFromFile(std::ifstream&); 
-    virtual ~cgalRectangleSurf() {}
+    ~cgalRectangleSurf() {}
 };
 
 class cgalCircleSurf : public cgalSurf
@@ -106,7 +106,7 @@ public :
     virtual void cgalTriMesh(std::ifstream&);
     virtual void getParaFromFile(std::ifstream&);
     double distance(double*, double*, int); 
-    virtual ~cgalCircleSurf() {}
+    ~cgalCircleSurf() {}
 };
 
 class cgalParaSurf : public cgalCircleSurf {
@@ -116,7 +116,7 @@ public :
 		cgalCircleSurf(intfc, surf) {}
     virtual void addCgalConst(); 
     virtual void getParaFromFile(std::ifstream&); 
-    virtual ~cgalParaSurf() {}; 
+    ~cgalParaSurf() {}; 
 };
 
 #endif
