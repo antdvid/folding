@@ -1,5 +1,4 @@
 #include "cgal.h"
-#include <stdexcept>
 #include <utility>
 
 cgalSurf::cgalSurf(INTERFACE* intfc, SURFACE** surf) :  
@@ -442,7 +441,7 @@ void cgalParaSurf::getParaFromFile(std::ifstream& fin) {
     if (!findAndLocate(fin, "Enter the height of the canopy:"))
         clean_up(ERROR);
     
-    int h; 
+    double h; 
 
     fin >> h;
     setHeight(h); 
@@ -477,9 +476,12 @@ void cgalParaSurf::getParaFromFile(std::ifstream& fin) {
 	setCGALMinAngleUb(c); 
     }
     std::cout << readCGALMinAngleUb() << std::endl;
-    if (!findAndLocate(fin, "Enter the number of gores:"))
-	std::runtime_error("Must specify the number of gores!\n"); 
-    fin >> num_lines; 
+    if (!findAndLocate(fin, "Enter the number of gores:")) {
+	std::cout << "use default!\n"; 
+	num_lines = 16; 
+    }
+    else 
+        fin >> num_lines; 
 }
 
 void cgalParaSurf::addCgalConst() {
