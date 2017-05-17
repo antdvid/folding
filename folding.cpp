@@ -112,6 +112,21 @@ void Folder::setParaFromFile(const char* s)
     fin.close(); 
 }
 
+void Folder3d::deleteLines() {
+    CURVE** c; 
+    int num = 100; 
+
+    while (num) {
+	num = 0; 
+        intfc_curve_loop(m_intfc, c) {
+	    if (hsbdry_type(*c) == STRING_HSBDRY) {
+	        delete_curve(*c); 
+		num++; 
+	    }
+        }
+    }
+}
+
 void Folder3d::doFolding() {
     SpringSolver* sp_solver = SpringSolver::createSpringSolver(
 						getOdeScheme()); 
@@ -141,7 +156,8 @@ void Folder3d::doFolding() {
     
     Drag::setTolerance(m_intfc->table->rect_grid.h[0]*0.5);
     Drag::setThickness(0.001);
-
+    
+    deleteLines(); 
     for (std::vector<Drag*>::iterator it = drags.begin();
 	 it != drags.end(); ++it) 
     {

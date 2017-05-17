@@ -53,6 +53,8 @@ private:
     double computePotentialEnergy();
     void recordData(double, std::string);
     void appendDataToFile(double, double, std::string);
+    void deleteLines(); 
+    void installLines(); 
     std::set<std::string> dataFileSet;
     INTERFACE* m_intfc;
     Movie* movie;
