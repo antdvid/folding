@@ -3,10 +3,11 @@
 #include <iterator>
 #include <unordered_map>
 #include <fstream>
+
 static std::ostream& operator << (std::ostream& os, const std::vector<double>&);
 static std::ostream& operator << (std::ostream& os, const std_matrix&);
 
-//class OgmPoint 
+//class OgmPoint
 OgmPoint::OgmPoint(SpringVertex& sv) : SpringVertex(sv)
 {
     x0.resize(3,0);
@@ -14,129 +15,71 @@ OgmPoint::OgmPoint(SpringVertex& sv) : SpringVertex(sv)
 }
 
 //class OrigamiFold
-void OrigamiFold :: preprocess(std::vector<SpringVertex*>& pts)
+void OrigamiFold::preprocess(std::vector<SpringVertex*>& pts)
 {
-    //perform only once
-    if (first)
-    {
-	first = false;
-    	//set all points registered
-	//replace all spring vertices with new OgmPoints
-	for (size_t i = 0; i < pts.size(); ++i)
-	{
-	    SpringVertex* sv = new OgmPoint(*pts[i]);
-	    delete pts[i];
-	    pts[i] = sv;
-	    pts[i]->setRegistered();
-	}
-    	//assign id to vertex, each vertex uniquely relates to a crease
-    	assignVertexId(pts);
-    }
-    //recompute folding matrix for each crease
-    findNextFoldingAngle();
-    int start = 0;
-    for (size_t i = 0; i < vertices.size(); ++i)
-    {
-	Vertex* v = vertices[i];
-	std::vector<double> myrho(rho_delta.begin() + start,
-				  rho_delta.begin() + start + v->creases.size());
-	v->updateCreaseFoldingMatrix(myrho); 
-	start += v->creases.size();
-    }
-    
+     if (first)
+     { 
+         first = false;
+	 for (size_t i = 0; i < pts.size(); ++i)
+         {
+              SpringVertex* sv = new OgmPoint(*pts[i]);
+              delete pts[i];
+              pts[i] = sv;
+              pts[i]->setRegistered();
+         }
+	 assignFacesOgmPoints(pts); 
+     }
+     findNextFoldingAngle(); 
+     for (int i = 0; i < creases_.size(); i++) 
+	  creases_[i]->updateRotMatrix(rho_delta[i]); 
+     for (auto it : faces_) 
+          it->updateFoldingMatrix(); 
 }
 
-void OrigamiFold::assignVertexId(std::vector<SpringVertex*>& pts)
-{
-    sortCreases(pts[rand()%pts.size()]->getCoords());
-    //assign crease to each spring point
-    for (SpringVertex* sv : pts)
-    {
-	for (auto vtx : vertices)
-	{
-	    if (vtx->creases.size() == 0)
-		continue;
-	    if (vtx->creases.size() == 1)
-	    {
-		OgmPoint* og_pt = static_cast<OgmPoint*>(sv);
-                og_pt->crs.push_back(vtx->creases.back());
-		continue;
-	    }
-
-	    std::vector<double> v0(sv->getCoords(), sv->getCoords()+3);
-	    Math::V3mV3(v0, vtx->crds, v0);
-	    double alpha0 = Math::angleBetweenWithDir(
-					vtx->creases[0]->dir,
-					v0, vtx->nor);
-	    if (Math::Mag(v0) < 1e-12)
-	    {
-		OgmPoint* og_pt = static_cast<OgmPoint*>(sv);
-                og_pt->crs.push_back(vtx->creases.back());
-	    }
-	    else if (alpha0 > Math::angleBetweenWithDir(
-					vtx->creases[0]->dir,
-					vtx->creases.back()->dir, vtx->nor))
-	    {
-		OgmPoint* og_pt = static_cast<OgmPoint*>(sv);
-                og_pt->crs.push_back(vtx->creases.back());
-	    }
-	    else
-	    for (int j = 1; j < vtx->creases.size(); ++j)
-	    {
-		double alpha1 = Math::angleBetweenWithDir(
-					vtx->creases[0]->dir,	
-					vtx->creases[j-1]->dir, vtx->nor);
-		double alpha2 = Math::angleBetweenWithDir(
-					vtx->creases[0]->dir,
-					vtx->creases[j]->dir, vtx->nor);
-		if (alpha0 >= alpha1 && alpha0 <= alpha2)
-		{
-		    OgmPoint* og_pt = static_cast<OgmPoint*>(sv);
-		    og_pt->crs.push_back(vtx->creases[j-1]);
-		}
-	    }
-	    if (static_cast<OgmPoint*>(sv)->crs.size() == 0)
-	    {
-		std::cout << "alpha0 = " << alpha0 << std::endl;
-	    	std::cout << "ERROR: crease not assigned" << std::endl;
-	    	exit(-1);
-	    }
-	}
-    }
+void OrigamiFold::assignFacesOgmPoints(std::vector<SpringVertex*>& pts) {
+    for (size_t i = 0; i < pts.size(); i++) {
+         OgmPoint* op = static_cast<OgmPoint*>(pts[i]); 
+         
+         for (auto it : faces_) 
+              if (it->poInside(op)) {
+                  op->addOgmFace(it); 
+              }
+    }     
 }
 
-std::vector<double> OrigamiFold::findFoldable(std::vector<double>& input, double& err)
+std::vector<double> OrigamiFold::findFoldable(std::vector<double>& input, 
+double& err)
 {
     if (m_opt == NULL)
     {
-	size_t N = rho.size();
-	m_opt = new nlopt::opt(nlopt::LN_COBYLA, N);
-	this->m_opt->set_stopval(1e-6);
+        size_t N = rho.size();
+        m_opt = new nlopt::opt(nlopt::LN_COBYLA, N);
+        this->m_opt->set_stopval(1e-6);
         this->m_opt->set_ftol_abs(1e-6);
         this->m_opt->set_xtol_rel(1e-6);
-        this->m_opt->set_maxeval(3000);  //maxiteration
-	nlopt::srand(1234);
-	std::vector<double> lowerbounds(N, -M_PI);
+        this->m_opt->set_maxeval(3000);
+        nlopt::srand(1234);
+        std::vector<double> lowerbounds(N, -M_PI);
         std::vector<double> upperbounds(N, M_PI);
 
-	for (size_t i = 0; i < N; ++i)
-	{
-	    if (rho_T[i] > 0)
-		lowerbounds[i] = 0;
-	    if (rho_T[i] < 0)
-		upperbounds[i] = 0;
-	}
-	m_opt->set_lower_bounds(lowerbounds); 
-	m_opt->set_upper_bounds(upperbounds);
-	this->m_opt->set_min_objective(staticTargetFunction, this);
-    }    
+        for (size_t i = 0; i < N; ++i)
+        {
+            if (rho_T[i] > 0)
+                lowerbounds[i] = 0;
+            if (rho_T[i] < 0)
+                upperbounds[i] = 0;
+        }
+        m_opt->set_lower_bounds(lowerbounds);
+        m_opt->set_upper_bounds(upperbounds);
+        this->m_opt->set_min_objective(staticTargetFunction, this);
+    }
     std::vector<double> ans = m_opt->optimize(input);
     err = targetFunction(ans);
     return ans;
 }
 
 double OrigamiFold::staticTargetFunction(
-		const std::vector<double>& x,
+                const std::vector<double>& x,
                 std::vector<double> &grad,
                 void *my_func_data)
 {
@@ -145,90 +88,87 @@ double OrigamiFold::staticTargetFunction(
 }
 
 double OrigamiFold::targetFunction(
-		const std::vector<double>& x)
+                const std::vector<double>& x)
 {
-    double ans = 0; 
-    int start = 0;
-    for (size_t i = 0; i < vertices.size(); ++i)
-    {
-	Vertex* v = vertices[i];
-	std::vector<double> myrho(x.begin() + start, 
-				  x.begin() + start + v->creases.size());
-	v->updateCreaseFoldingMatrix(myrho);
-	std_matrix M = Math::Mat(3, 3);
-	std_matrix I = Math::Eye(3);
-        Math::M3mM3(v->creases.back()->fd_matrix, I, M);
-	ans += Math::Norm(M, 1);
-	start += v->creases.size();
+    double ans = 0;
+    
+    for (size_t i = 0; i < creases_.size(); i++) {
+         creases_[i]->updateRotMatrix(x[i]); 
+    }
+    for (auto it : vertices_) {
+         if (!it->judgeNonVirtual()) continue; 
+         Nvvertex* nv = static_cast<Nvvertex*>(it); 
+
+         std::vector<Crease*> crsOnVertex = nv->getCreaseOnVertex();    
+         std_matrix I = Math::Eye(4); 
+         std_matrix M = Math::Eye(4); 
+         std_matrix tempAns = Math::Mat(4,4); 
+
+         for (auto it1 : crsOnVertex) {
+
+              Math::MatxMat(M, it1->getRotMatrix(), tempAns);
+              Math::assignMatToMat(tempAns, M);        
+         } 
+         Math::MatmMat(M, I, M); 
+         ans += Math::Norm(M, 1); 
     }
     return ans;
-}
-
-std::ostream& operator << (std::ostream& os, const std::vector<double>& v)
-{
-    std::copy(v.begin(), v.end(), std::ostream_iterator<double>(os, " "));
-    return os;
-}
-
-std::ostream& operator << (std::ostream& os, const std_matrix& m)
-{
-    os << "[" << std::endl;
-    for (auto v : m)
-    {
-    	std::copy(v.begin(), v.end(), std::ostream_iterator<double>(os, " "));
-	os << std::endl;
-    }
-    os << "]" << std::endl;
-    return os;
 }
 
 void OrigamiFold::findNextFoldingAngle()
 {
     const int maxIter = 2000;
-    int iter = 0;
+    static int iter = 0;
     bool success = false;
-    double w0, w1, w2, w, D;
-    w0 = 0.8; w1 = 0.2; w2 = 0.01; w = w0; D = 0.015;
+    static double w = 0.8; 
+    double w0, w1, w2, D;
+    w1 = 0.2; w2 = 0.01; D = 0.015;
     while (!success && iter++ < maxIter)
     {
-	int N = rho.size();
-	std::vector<double> rho_rand(N, 0);
-	std::vector<double> dir(N, 0);
-	for (int i = 0; i < N; ++i)
-	{
-	    rho_rand[i] = (rand()/(double)RAND_MAX * 2 - 1) * M_PI;
-	    dir[i] = (1 - w) * rho_rand[i] + w * rho_T[i];
-	    rho_tau[i] = rho_delta[i] + D * dir[i];
-	    //hard limit for input
-	    rho_tau[i] = std::min(M_PI, 
-			 std::max(rho_tau[i], -M_PI));
-	}
+        int N = rho.size();
+        std::vector<double> rho_rand(N, 0);
+        std::vector<double> dir(N, 0);
+        for (int i = 0; i < N; ++i)
+        {
+            rho_rand[i] = (rand()/(double)RAND_MAX * 2 - 1) * M_PI;
+            dir[i] = (1 - w) * rho_rand[i] + w * rho_T[i];
+            rho_tau[i] = rho_delta[i] + D * dir[i];
+            rho_tau[i] = std::min(M_PI,
+                         std::max(rho_tau[i], -M_PI));
+        }
 
-	double err = 0;
-	rho = findFoldable(rho_tau, err);
-	if (isValid(rho), Math::dist3d(rho_T, rho) < Math::dist3d(rho_T, rho_delta))
-	{
-	    rho_delta = rho;
-	    w = w + w1;	
-	    success = true;
-	    std::cout << "rho = " << rho << std::endl;
-	}
-	else
-	{
-	    w = w - w2;
-	    success = false;
-	}
-	w = std::max(std::min(w, 1.0), 0.0);
-    }    
+        double err = 0;
+        rho = findFoldable(rho_tau, err);
+        if (isValid(rho) && Math::dist3d(rho_T, rho) < Math::dist3d(rho_T, rho_delta))
+        {
+            rho_delta = rho;
+            w = w + w1;
+            success = true;
+            std::cout << "rho = " << rho << std::endl;
+            if (Math::dist3d(rho_delta, rho_T) < 1.0e-3) {
+                iter = maxIter; 
+                std::cout << "convergence reached: err = 1e-3" 
+                << "folding angle = [" << rho_delta << "]" << std::endl; 
+                std::cout << "Folding process is terminated" << std::endl; 
+                m_t = 0; 
+            }
+        }
+        else
+        {
+            w = w - w2;
+            success = false;
+        }
+        w = std::max(std::min(w, 1.0), 0.0);
+    }
     if (iter >= maxIter)
     {
-	std::cout << "Maxium iteration reached\n" 
-	<< "folding angle = [" << rho_delta << "]" 
-	<< std::endl;
-	std::cout << "err = " << targetFunction(rho_delta) << std::endl;
-	std::cout << "Folding process is terminated" 
-	<< std::endl;
-	m_t = 0;
+        std::cout << "Maxium iteration reached\n"
+        << "folding angle = [" << rho_delta << "]"
+        << std::endl;
+        std::cout << "err = " << targetFunction(rho_delta) << std::endl;
+        std::cout << "Folding process is terminated"
+        << std::endl;
+        m_t = 0;
     }
 }
 
@@ -236,8 +176,8 @@ bool OrigamiFold::isValid(const std::vector<double>& rho)
 {
     for (auto a : rho)
     {
-	if (fabs(a) > M_PI)
-	    return false;
+        if (fabs(a) > M_PI)
+            return false;
     }
     return true;
 }
@@ -245,16 +185,16 @@ bool OrigamiFold::isValid(const std::vector<double>& rho)
 void OrigamiFold::postprocess(std::vector<SpringVertex*>& pts) {}
 
 void OrigamiFold:: setVel(SpringVertex* sv)
-{  
-    std::vector<double> new_crds(3, 0); 
+{
+    std::vector<double> new_crds(3, 0);
     ogmComputeNewPosition(sv, new_crds);
     double* vel = sv->getVel();
     for (int i = 0; i < 3; ++i)
-	vel[i] = (new_crds[i] - sv->getCoords()[i])/getTimeStepSize();
+        vel[i] = (new_crds[i] - sv->getCoords()[i])/getTimeStepSize();
+
 }
 
 void OrigamiFold::setAccel(SpringVertex*){}
-
 size_t OrigamiFold::dataSize()
 {
     return totalDataSize;
@@ -264,333 +204,295 @@ Drag* OrigamiFold::clone(const Info & info)
 {
     if (info.data().size() == 0)
     {
-	std::cout << "Warning: OrigamiFold is not created, no data provided"
-		  << std::endl;
-	return NULL;
+        std::cout << "Warning: OrigamiFold is not created, no data provided"
+                  << std::endl;
+        return NULL;
     }
     if (info.data().size() > 0 && info.data().size() < 2)
     {
-	std::cout << "Warning: OrigamiFold is not created, " 
-		  << "insufficient data is given"
-		  << std::endl;
+        std::cout << "Warning: OrigamiFold is not created, "
+                  << "insufficient data is given"
+                  << std::endl;
     }
-    //parse info to create drag object
     std::vector<double> v = info.data();
     std::vector<std::vector<double>> points;
-    std::vector<std::vector<int>> creases; 
+    std::vector<std::pair<int, int>> creases;
+    std::vector<std::vector<int>> faces; 
+    std::vector<std::vector<int>> vertex_crease_index; 
     std::vector<double> angles;
     size_t n_pt = (size_t)v[0];
     size_t n_crs = (size_t)v[1];
-    totalDataSize = 2 + n_pt * 3 + n_crs * 2 + n_crs * 1;
-    
-    if(!validateData(info))
-	return NULL;
+    size_t n_fs = (size_t)v[2]; 
+    size_t n_fsp = (size_t)v[3]; 
+    size_t n_nvv = (size_t)v[4];
+    size_t n_nvc = (size_t)v[5]; 
 
-    double *it = &(v.front()) + 2;
-    //create points
+    totalDataSize = 6 + n_pt * 3 + n_crs * 2 + n_crs * 1 + n_fs + n_fsp + 
+        n_nvv + n_nvc;
+    if(!validateData(info))
+        return NULL;
+
+    double *it = &(v.front()) + 6;
     for (int i = 0; i < n_pt; ++i)
     {
-	points.push_back({*it, *(it+1), *(it+2)});
-	it += 3;
+        points.push_back({*it, *(it+1), *(it+2)});
+        it += 3;
     }
-    //create creases
     for (int i = 0; i < n_crs; ++i)
     {
-        creases.push_back({int(*it), int(*(it+1))});
+        creases.push_back(std::make_pair(int(*it), int(*(it+1))));
         it += 2;
     }
-
-    //create angles
+    for (int i = 0; i < n_fs; i++) {
+	 std::vector<int> temp; 
+         for (int j = 0; j < int(*it); j++) {
+	      temp.push_back(int(*(it+j+1))); 
+         }
+	 it = it + int(*it)+1; 
+	 faces.push_back(temp);
+    }
+    for (int i = 0; i < n_nvv; i++) {
+         std::vector<int> temp; 
+         for (int j = 0; j < int(*it); j++)
+              temp.push_back(int(*(it+j+1))); 
+         it = it + int(*it) + 1; 
+         vertex_crease_index.push_back(temp); 
+    }
     for (int i = 0; i < n_crs; ++i)
     {
-	angles.push_back(*it);
-  	it ++;
+        angles.push_back(*it);
+        it ++;
     }
-    return new OrigamiFold(points, creases, angles);
+    return new OrigamiFold(points, faces, creases, vertex_crease_index, angles);
 }
 
 OrigamiFold::OrigamiFold(): m_opt(NULL) {}
 
-OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points, 
-			 const std::vector<std::vector<int>>& creases,
-			 const std::vector<double>& angles)
+OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
+			 const std::vector<std::vector<int>>& fs, 
+                         const std::vector<std::pair<int, int>>& creases,
+                         const std::vector<std::vector<int>>& 
+                            vertex_crease_index, 
+                         const std::vector<double>& angles)
 {
     m_t = 1.4;
     m_opt = NULL;
-    std::unordered_map<int, Vertex*> vertex_map;
     if (creases.size() != angles.size())
     {
-	std::cerr << "Number of creases does not equal to number of angles" 
-		  << std::endl; 
+        std::cerr << "Number of creases does not equal to number of angles"
+                  << std::endl;
     }
 
     size_t N = creases.size();
-    //allocate memory for rho
+
     rho.resize(N, 0);
     rho_delta.resize(N, 0);
     rho_tau.resize(N, 0);
-
-    //create creases and vertices
+    vertices_.resize(points.size()); 
+    for (int i = 0; i < points.size(); i++) 
+	 vertices_[i] = NULL;  
     for (size_t i = 0; i < creases.size(); ++i)
     {
-	int vindex = creases[i][0];
-	int pindex = creases[i][1];
-	Vertex* vtx = NULL;
-	if (vertex_map.find(vindex) == vertex_map.end())
-	{
-	    vtx = new Vertex(points[vindex]);
-	    vertices.push_back(vtx);
-	    vertex_map[vindex] = vtx;
-	}
-	else
-	{
-	    vtx = vertex_map[vindex];
-	}
-	Crease* crs = new Crease(points[vindex], 
-				     points[pindex], angles[i]);
-	crs->vtx = vtx;
-	vtx->creases.push_back(crs);
+        int vindex = creases[i].first;
+        int pindex = creases[i].second;
+
+        if (vertices_[vindex] == NULL)
+            vertices_[vindex] = new Nvvertex(points[vindex], vindex);
+	if (vertices_[pindex] == NULL) 
+	    vertices_[pindex] = new Vertex(points[pindex], pindex); 
+
+        creases_.push_back(new Crease(vertices_[vindex], vertices_[pindex], 
+            vindex, pindex, angles[i]));
+    }
+    for (size_t i = 0; i < points.size(); i++) {
+         if (vertices_[i] == NULL) 
+             vertices_[i] = new Vertex(points[i], i); 
     }
 
-}
+    for (auto it : creases_) 
+         rho_T.push_back(it->getRotAngle()); 
 
-void OrigamiFold::sortCreases(double* rand_crds)
-{
-    //compute normal vector
-    for (auto vtx : vertices)
-    {
-    	vtx->nor = {0, 0, 0};
-	if (vtx->creases.size() == 0)
-	{
-	    vtx->nor = {0, 0, 1};
-	}
-	else if (vtx->creases.size() > 1)
-	{
-	    Math::Cross3d(vtx->creases[0]->dir, vtx->creases[1]->dir, vtx->nor);
-	}
-	if (Math::Mag(vtx->nor) < 1e-15)
-	{
-	    //one crease line or two parallel crease lines
-	    std::vector<double> rand_v(rand_crds, rand_crds+3);
-	    Math::V3mV3(rand_v, vtx->crds, rand_v);
-	    Math::Cross3d(vtx->creases[0]->dir, rand_v, vtx->nor);
-	}
-	Math::Normalize(vtx->nor);
+    std::vector<Crease*> tempFaceCrease; 
+    
+    for (size_t i = 0; i < fs.size(); i++) {
+	 std::vector<Vertex*> tempFaceVertex; 
+         
+	 tempFaceCrease.push_back(creases_[i]); 
+	 for (size_t j = 0; j < fs[i].size(); j++) 
+	      tempFaceVertex.push_back(vertices_[fs[i][j]]); 
+	 faces_.push_back(new Face(tempFaceVertex, tempFaceCrease)); 
     }
 
+    int count = 0; 
 
-    //sort creases
-    for (auto vtx : vertices)
-    {
-        std::vector<double> x_axis = vtx->creases[0]->dir;
-	sort(vtx->creases.begin(), vtx->creases.end(),
-	     [&](const Crease* c1, const Crease* c2)->bool {
-    		double a1 = Math::angleBetweenWithDir(x_axis,c1->dir,vtx->nor);
-    		double a2 = Math::angleBetweenWithDir(x_axis,c2->dir,vtx->nor);
-    		return a1 < a2;
-	     });
+    for (auto it : vertices_) {
+         if (!it->judgeNonVirtual()) continue; 
+         Nvvertex* nv = static_cast<Nvvertex*>(it); 
+         for (size_t i = 0; i < vertex_crease_index[count].size(); i++) 
+              nv->insertCrease(creases_[vertex_crease_index[count][i]]); 
+         count++; 
     }
-    //assemble rho_T according to the order of creases
-    for (auto vtx : vertices)
-    {
-	for (auto crs : vtx->creases)
-        {
-	    rho_T.push_back(crs->rho_T);
-     	}
-    } 
-
 }
 
 void OrigamiFold::ogmComputeNewPosition(SpringVertex* sv, std::vector<double>& new_crds)
 {
-    OgmPoint* ov = static_cast<OgmPoint*>(sv);
-    for (Crease* crs : ov->crs)
-    {
-        std::copy(ov->x0.begin(), ov->x0.end(), new_crds.begin());
-        crs->crsFoldCrds(new_crds);
-    }
+    OgmPoint* op = static_cast<OgmPoint*>(sv); 
+
+    new_crds[0] = op->getInitialCoords()[0]; 
+    new_crds[1] = op->getInitialCoords()[1];
+    new_crds[2] = op->getInitialCoords()[2];
+    // note: for the point on the crease, 
+    // we only move it once (rotate along creases of previous face or
+    // current face. The two motion is equivalent since that point is on
+    // the crease line)
+    Face* bface = op->getOgmFaces().back(); 
+
+    bface->crsFoldCrds(new_crds); 
 }
 
-//destructor
 OrigamiFold::~OrigamiFold() {
     if (this->m_opt)
     {
-	delete this->m_opt;
-	this->m_opt = NULL;
+        delete this->m_opt;
+        this->m_opt = NULL;
     }
-    for (auto v : vertices)
+    for (auto v : vertices_)
+         delete v; 
+    for (auto c : creases_) 
+         delete c; 
+    for (auto f : faces_) 
+         delete f; 
+}
+
+// class Crease
+Crease::Crease(Vertex* v1, Vertex* v2, int idx1, int idx2, double rho) {
+    v1_ = v1; 
+    v2_ = v2; 
+    index1 = idx1; 
+    index2 = idx2; 
+    rho_T = rho; 
+    rot_matrix = Math::Mat(4, 4); 
+    dir.resize(3); 
+    Math::VecmVec(v2_->getCoords(), v1_->getCoords(), dir); 
+    Math::Normalize(dir); 
+}
+
+void Crease::updateRotMatrix(double rho) {
+    Math::getRotMatrix(v1_->getCoords(), getDir(), rot_matrix, rho); 
+}
+
+// class Face
+Face::Face(const std::vector<Vertex*>& vv, const std::vector<Crease*>& vc) {
+    vertices_ = vv; 
+    crsAlongPath = vc; 
+    fd_matrix = Math::Mat(4, 4);
+}
+
+bool Face::poInside(OgmPoint* op) {
+    int size = vertices_.size(); 
+
+    for (size_t i = 0; i < size-1; i++)
+         if (Math::leftOn(vertices_[i]->getCoords(), 
+            vertices_[i+1]->getCoords(), op->getInitialCoords())) continue; 
+         else return false; 
+    if (!Math::leftOn(vertices_[size-1]->getCoords(), 
+            vertices_[0]->getCoords(), op->getInitialCoords()))
+        return false; 
+    return true; 
+}
+
+void Face::crsFoldCrds(std::vector<double>& new_crds) {
+    std::vector<double> coords(new_crds); 
+    std::vector<double> ans(4, 0); 
+
+    coords.push_back(1.0);
+    Math::MatxVec(fd_matrix, coords, ans);
+    for (int i = 0 ;i < 3; i++) 
+         new_crds[i] = ans[i]; 
+}
+
+void Face::updateFoldingMatrix() {
+    std_matrix M = Math::Eye(4); 
+    std_matrix tempAns = Math::Mat(4, 4); 
+
+    for (auto it : crsAlongPath) {
+         Math::MatxMat(M, it->getRotMatrix(), tempAns); 
+         Math::assignMatToMat(tempAns, M); 
+    }
+    Math::assignMatToMat(M, fd_matrix); 
+}
+
+// class Math
+void Math::MatxMat(const std::vector<std::vector<double>> & M1,
+                   const std::vector<std::vector<double>> & M2,
+                   std::vector<std::vector<double>> & ans)
+{
+    // mxn x nxp
+    int m = M1.size(); 
+    int n = M1[0].size(); 
+    int p = M2[0].size(); 
+
+    for (int i = 0; i < m; ++i)
+    for (int j = 0; j < p; ++j)
     {
-	for (auto c : v->creases)
-	{
-	    delete c;
-	}
-	delete v;
+        ans[i][j] = 0.0;
+        for (int k = 0; k < n; ++k)
+            ans[i][j] += M1[i][k] * M2[k][j];
     }
 }
 
-//Class Crease
-Crease::Crease(const std::vector<double>& p1, 
-	       const std::vector<double>& p2, 
-	       const double angle)
-{
-    dir.resize(3, 0);
-    for (int i = 0; i < 3; ++i)
-    {
-	dir[i] = p2[i] - p1[i];
-    }
-    Math::Normalize(dir);
-    rho_T = angle;
-    fd_matrix = Math::Mat(3,3);
-}
-
-void Crease::crsFoldCrds(std::vector<double>& crds)
-{
-     std::vector<double> ans(3, 0);
-     const std::vector<double>& center = vtx->crds;
-     Math::V3mV3(crds, center, crds);
-     Math::M3xV3(fd_matrix, crds, ans);
-     Math::V3pV3(ans, center, crds);
-}
-
-void Crease::crsRotationMatrix(std::vector<std::vector<double>>& R, 
-				double theta)
-{
-    double u,v,w;
-    //dir should be normalized
-    u = dir[0]; v = dir[1]; w = dir[2];
-
-    R[0][0] = u*u + (1-u*u)*cos(theta);
-    R[0][1] = u*v*(1-cos(theta)) - w*sin(theta);
-    R[0][2] = u*w*(1-cos(theta))+v*sin(theta);
-
-    R[1][0] = u*v*(1-cos(theta)) + w*sin(theta);
-    R[1][1] = v*v + (1 - v*v)*cos(theta);
-    R[1][2] = v*w*(1-cos(theta)) - u*sin(theta);
-
-    R[2][0] = u*w*(1-cos(theta)) - v*sin(theta); 
-    R[2][1] = v*w*(1-cos(theta)) + u*sin(theta);  
-    R[2][2] = w*w+(1-w*w)*cos(theta);
-}
-
-void Crease::crsRotationMatrixDerivative(std::vector<std::vector<double>>& dR, 
-					 double theta)
-{
-    double u,v,w;
-    //dir should be normalized
-    u = dir[0]; v = dir[1]; w = dir[2];
-
-    dR[0][0] = -(1-u*u)*sin(theta);
-    dR[0][1] = u*v*sin(theta) - w*cos(theta);
-    dR[0][2] = u*w*sin(theta)+v*cos(theta);
-             
-    dR[1][0] = u*v*sin(theta) + w*cos(theta);
-    dR[1][1] = -(1-v*v)*sin(theta);
-    dR[1][2] = v*w*sin(theta) - u*cos(theta);
-             
-    dR[2][0] = u*w*sin(theta) - v*cos(theta);
-    dR[2][1] = v*w*sin(theta) + u*cos(theta);
-    dR[2][2] = -(1-w*w)*sin(theta);
-}
-
-void Crease::updateFoldingMatrix(const std::vector<std::vector<double>>& M)
-{
-    for (int i = 0; i < 3; ++i)
-    for (int j = 0; j < 3; ++j)
-    {
-	fd_matrix[i][j] = M[i][j];
-    }
-}
-
-Vertex::Vertex(const std::vector<double>& coords) : crds(coords)
-{}
-
-void Vertex::updateCreaseFoldingMatrix(const std::vector<double>& rho)
-{
-    if (creases.size() == 0)
-	return;
-    std::vector<std::vector<double>> M(4,std::vector<double>(4,0)), ans = M;
-
-    Crease* crs = creases[0];
-    crs->crsRotationMatrix(M, rho[0]);
-    crs->updateFoldingMatrix(M);
-
-    for (int i = 1; i < creases.size(); ++i)
-    {
-	crs = creases[i];
-	crs->crsRotationMatrix(M, rho[i]);
-	Math::M3xM3(creases[i-1]->fd_matrix, M, ans);	
-	crs->updateFoldingMatrix(ans);
-    }
-}
-
-//Math class
-/*
-void Math::MatxMat(const std::vector<std::vector<double>>& M1, 
-		const std::vector<std::vector<double>>& M2, int dim, 
-		std::vector<std::vector<double>>& ans) {
-    for (int i = 0; i < dim; i++)
-	 for (int j = 0; j < dim; j++)
-	      for (int k = 0; k < dim; k++)
-	           ans[i][j] += M1[i][k] * M2[k][i];
-}
-
-*/
-void Math::M3xM3(const std::vector<std::vector<double>> & M1, 
-		   const std::vector<std::vector<double>> & M2,
-		   std::vector<std::vector<double>> & ans)
-{
-    for (int i = 0; i < 3; ++i)
-    for (int j = 0; j < 3; ++j)
-    {
-	ans[i][j] = 0.0;
-	for (int k = 0; k < 3; ++k)
-	    ans[i][j] += M1[i][k] * M2[k][j];
-    }
-}
-
-void Math::M3xV3(const std::vector<std::vector<double>>& M,
+void Math::MatxVec(const std::vector<std::vector<double>>& M,
                    const std::vector<double>& v,
                    std::vector<double>& ans)
 {
-    for (int i = 0; i < 3; ++i)
+    int m = M.size(); 
+    int n = v.size(); 
+
+    for (int i = 0; i < m; ++i)
     {
         ans[i] = 0;
-        for (int j = 0; j < 3; ++j)
+        for (int j = 0; j < n; ++j)
             ans[i] += M[i][j] * v[j];
     }
 }
 
-void Math::M3pM3(const std::vector<std::vector<double>>& M1,
+void Math::MatpMat(const std::vector<std::vector<double>>& M1,
                  const std::vector<std::vector<double>>& M2,
                  std::vector<std::vector<double>> & ans)
 {
-    for (int i = 0; i < 3; ++i)
-    for (int j = 0; j < 3; ++j)
+    int m = M1.size(); 
+    int n = M1[0].size(); 
+
+    for (int i = 0; i < m; ++i)
+    for (int j = 0; j < n; ++j)
     {
         ans[i][j] = M1[i][j] + M2[i][j];
     }
 }
 
-void Math::M3mM3(const std::vector<std::vector<double>>& M1,
+void Math::MatmMat(const std::vector<std::vector<double>>& M1,
                  const std::vector<std::vector<double>>& M2,
                  std::vector<std::vector<double>> & ans)
 {
-    for (int i = 0; i < 3; ++i)
-    for (int j = 0; j < 3; ++j)
+    int m = M1.size();
+    int n = M1[0].size();
+
+    for (int i = 0; i < m; ++i)
+    for (int j = 0; j < n; ++j)
     {
         ans[i][j] = M1[i][j] - M2[i][j];
     }
 }
 
-void Math::V3mV3(const std::vector<double>& v1,
+void Math::VecmVec(const std::vector<double>& v1,
                  const std::vector<double>& v2,
                        std::vector<double>& ans)
 {
     for (size_t i = 0; i < v1.size(); ++i)
-	ans[i] = v1[i] - v2[i];
+        ans[i] = v1[i] - v2[i];
 }
 
-void Math::V3pV3(const std::vector<double>& v1,
+void Math::VecpVec(const std::vector<double>& v1,
                  const std::vector<double>& v2,
                        std::vector<double>& ans)
 {
@@ -598,35 +500,9 @@ void Math::V3pV3(const std::vector<double>& v1,
         ans[i] = v1[i] + v2[i];
 }
 
-double Math::angleBetween(const std::vector<double>& v1, 
-			  const std::vector<double>& v2)
-{
-    double dp = 0;
-    for (int i = 0; i < 3; ++i)
-    {
-	dp += v1[i]*v2[i];
-    }
-    double m1 = Math::Mag(v1);
-    double m2 = Math::Mag(v2);
-    return acos(std::max(std::min(dp/(m1*m2), 1.0), -1.0));
-}
-
-double Math::angleBetweenWithDir(
-		const std::vector<double>& v1,
-                const std::vector<double>& v2,
-		const std::vector<double>& nor)
-{
-    //angle increases from v1 to v2
-    std::vector<double> n = nor;
-    Normalize(n);
-    double det = TriProd(n, v1, v2);
-    double dot = Math::Dot3d(v1, v2);
-    return det >= 0 ? atan2(det, dot) : 2*M_PI + atan2(det, dot);
-}
-
 void Math::Cross3d(const std::vector<double>& u,
                      const std::vector<double>& v,
-		     std::vector<double>& ans)
+                     std::vector<double>& ans)
 {
     ans[0] = u[1]*v[2] - u[2]*v[1];
     ans[1] = u[2]*v[0] - u[0]*v[2];
@@ -648,7 +524,7 @@ double Math::Dot3d(const std::vector<double>& a,
     double ans = 0;
     for (size_t i = 0; i < a.size(); ++i)
     {
-	ans += a[i] * b[i];
+        ans += a[i] * b[i];
     }
     return ans;
 }
@@ -657,15 +533,15 @@ double Math::Mag(const std::vector<double>& v)
 {
     double ans = 0;
     for (auto vi : v)
-	ans += vi*vi;
-    return sqrt(ans); 
+        ans += vi*vi;
+    return sqrt(ans);
 }
 
 std_matrix Math::Eye(int N)
 {
     std_matrix res(N, std::vector<double>(N, 0));
     for (int i = 0; i < N; ++i)
-	res[i][i] = 1.0;
+        res[i][i] = 1.0;
     return res;
 }
 
@@ -674,15 +550,16 @@ std_matrix Math::Mat(int m, int n)
    return std_matrix(m, std::vector<double>(n, 0));
 }
 
+
 double Math::Norm(const std_matrix& m, int p)
 {
    if (p == 0)
-	return 1.0;
+        return 1.0;
    double res = 0;
    for (auto v : m)
    for (auto a : v)
    {
-	res += std::pow(fabs(a), p);
+        res += std::pow(fabs(a), p);
    }
    return std::pow(res, 1/p);
 }
@@ -690,20 +567,21 @@ double Math::Norm(const std_matrix& m, int p)
 double Math::Norm(const std::vector<double>& v, int p)
 {
     if (p == 0)
-	return 1.0;
+        return 1.0;
     double res = 0;
     for (auto a : v)
-	res += std::pow(fabs(a), p);
+        res += std::pow(fabs(a), p);
     return std::pow(res, 1/p);
 }
 
-double Math::dist3d(const std::vector<double>& p1, 
-		    const std::vector<double>& p2)
+
+double Math::dist3d(const std::vector<double>& p1,
+                    const std::vector<double>& p2)
 {
     double ans = 0;
     for (size_t i = 0; i < p1.size(); ++i)
     {
-	ans += (p1[i]-p2[i])*(p1[i]-p2[i]);
+        ans += (p1[i]-p2[i])*(p1[i]-p2[i]);
     }
     return sqrt(ans);
 }
@@ -712,7 +590,76 @@ void Math::Normalize(std::vector<double>& v)
 {
    double vm = Mag(v);
    if (vm == 0)
-	return;
+        return;
    for (size_t i = 0; i < v.size(); ++i)
-	v[i] /= vm;	
+        v[i] /= vm;
+}
+
+bool Math::leftOn(const std::vector<double>& p1, const std::vector<double>& p2,
+     const std::vector<double>& q) {
+    std::vector<double> a(3, 0);
+ 
+    Math::VecmVec(p2, p1,a);
+
+    std::vector<double> b(3, 0);
+    
+    Math::VecmVec(q, p1, b);
+ 
+    std::vector<double> ans(3, 0); 
+
+    Math::Cross3d(a, b, ans); 
+    if (fabs(ans[2]) < 1.0e-12 || ans[2] > 0) 
+        return true; 
+    else return false; 
+}
+
+void Math::getRotMatrix(const std::vector<double>& point, 
+    const std::vector<double>& dir, std_matrix& mat, double rho) {
+    double u = dir[0], v = dir[1], w = dir[2]; 
+    double a = point[0], b = point[1], c = point[2]; 
+
+    mat[0][0] = u*u+(1-u*u)*cos(rho); 
+    mat[0][1] = u*v*(1-cos(rho))-w*sin(rho); 
+    mat[0][2] = u*w*(1-cos(rho))+v*sin(rho); 
+    mat[0][3] = (a*(v*v+w*w)-u*(b*v+c*w))*(1-cos(rho))+(b*w-c*v)*sin(rho); 
+
+    mat[1][0] = u*v*(1-cos(rho))+w*sin(rho); 
+    mat[1][1] = v*v+(1-v*v)*cos(rho); 
+    mat[1][2] = v*w*(1-cos(rho))-u*sin(rho); 
+    mat[1][3] = (b*(u*u+w*w)-v*(a*u+c*w))*(1-cos(rho))+(c*u-a*w)*sin(rho); 
+
+    mat[2][0] = u*w*(1-cos(rho)) - v*sin(rho);
+    mat[2][1] = v*w*(1-cos(rho)) + u*sin(rho);
+    mat[2][2] = w*w+(1-w*w)*cos(rho);
+    mat[2][3] = (c*(u*u+v*v)-w*(a*u+b*v))*(1-cos(rho))+(a*v-b*u)*sin(rho); 
+    
+    mat[3][0] = mat[3][1] = mat[3][2] = 0.0; 
+    mat[3][3] = 1.0; 
+}
+
+void Math::assignMatToMat(const std_matrix& M1, std_matrix& M2) {
+    int m = M1.size(); 
+    int n = M1[0].size(); 
+
+    for (int i = 0; i < m; i++)
+    for (int j = 0; j < n; j++) 
+         M2[i][j] = M1[i][j]; 
+} 
+
+std::ostream& operator << (std::ostream& os, const std::vector<double>& v)
+{
+    std::copy(v.begin(), v.end(), std::ostream_iterator<double>(os, " "));
+    return os;
+}
+
+std::ostream& operator << (std::ostream& os, const std_matrix& m)
+{
+    os << "[" << std::endl;
+    for (auto v : m)
+    {
+        std::copy(v.begin(), v.end(), std::ostream_iterator<double>(os, " "));
+        os << std::endl;
+    }
+    os << "]" << std::endl;
+    return os;
 }
