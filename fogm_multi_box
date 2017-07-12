@@ -1,0 +1,19 @@
+foldingplan OrigamiDrag
+number_of_points: 12
+number_of_creases: 10 
+number_of_faces: 8
+number_of_face_points: 28
+number_of_nv: 2
+number_of_nv_creases: 10
+
+point_coordinates: 0 0 0    2 0 0    -0.5 0.5 0    0 0.5 0    2 0.5 0    2.5 0.5 0    -0.5 0 0    2.5 0 0    -0.5 -0.5 0    0 -0.5 0    2 -0.5 0    2.5 -0.5 0
+
+crease_indices: 1 10    1 11    1 7    1 4     0 3    0 2    0 6    0 9    0 1    1 0
+
+face_indices: 3 1 10 11    3 1 11 7    4 1 7 5 4    4 1 4 3 0    3 0 3 2    3 0 2 6    4 0 6 8 9    4 1 0 9 10
+
+nv_indices: 5 4 5 6 7 8    5 0 1 2 3 9
+
+angles: 3.14159 -3.14159 1.5707 1.5707  3.14159 -3.14159 1.5707 1.5707 1.5707 1.5707
+
+Type of algorithm used in NLopt: LN_NELDERMEAD
