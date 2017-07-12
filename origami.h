@@ -1,6 +1,7 @@
 #include "spring_solver.h"
 #include "drag.h"
 #include "nlopt.hpp"
+#include <unordered_map>
 
 typedef std::vector<std::vector<double>> std_matrix;
 class Crease; 
@@ -86,10 +87,11 @@ public:
 		const std::vector<std::vector<int>>&,
                 const std::vector<std::pair<int, int>>&,
                 const std::vector<std::vector<int>>&, 
-                const std::vector<double>&);
+                const std::vector<double>&, int);
     OrigamiFold();
     ~OrigamiFold();
     size_t dataSize();
+    static const std::unordered_map<std::string, int> optAlgoMap; 
 private:
     bool first = true;
     std::vector<Vertex*> vertices_;
@@ -106,6 +108,7 @@ private:
     bool isValid(const std::vector<double>&);
     Drag * clone(const Info&);
     size_t totalDataSize;
+    int optAlgoType_; 
 };
 
 class Math
@@ -147,15 +150,17 @@ public:
     static double TriProd(const std::vector<double>& a,
                      const std::vector<double>& b,
                      const std::vector<double>& c);
-    static double Dot3d(const std::vector<double>& a,
+    static double Mdot3d(const std::vector<double>& a,
                    const std::vector<double>& b);
-    static void Cross3d(const std::vector<double>& u,
+    static void Mcross3d(const std::vector<double>& u,
                      const std::vector<double>& v,
                      std::vector<double>& ans);
     static bool leftOn(const std::vector<double>& p1,
                 const std::vector<double>& p2, const std::vector<double>& q);
     static void getRotMatrix(const std::vector<double>&, 
         const std::vector<double>&, std_matrix& , double); 
+    static void transpose(std_matrix&);
+    static void transpose(const std_matrix&, std_matrix&);
 private:
     Math();
 };

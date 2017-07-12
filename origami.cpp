@@ -1,7 +1,6 @@
 #include "origami.h"
 #include <iostream>
 #include <iterator>
-#include <unordered_map>
 #include <fstream>
 
 static std::ostream& operator << (std::ostream& os, const std::vector<double>&);
@@ -15,6 +14,9 @@ OgmPoint::OgmPoint(SpringVertex& sv) : SpringVertex(sv)
 }
 
 //class OrigamiFold
+const std::unordered_map<std::string, int> OrigamiFold::optAlgoMap ({
+        {"GN_DIRECT_L_RAND", 2}, {"LN_COBYLA", 25}, {"LN_NELDERMEAD", 28}, 
+        {"LD_TNEWTON_PRECOND", 17}});
 void OrigamiFold::preprocess(std::vector<SpringVertex*>& pts)
 {
      if (first)
@@ -53,7 +55,9 @@ double& err)
     if (m_opt == NULL)
     {
         size_t N = rho.size();
-        m_opt = new nlopt::opt(nlopt::LN_COBYLA, N);
+        nlopt::algorithm a = static_cast<nlopt::algorithm>(optAlgoType_); 
+        //nlopt::algorithm a = nlopt::LN_COBYLA; 
+        m_opt = new nlopt::opt(a, N);        
         this->m_opt->set_stopval(1e-6);
         this->m_opt->set_ftol_abs(1e-6);
         this->m_opt->set_xtol_rel(1e-6);
@@ -220,6 +224,7 @@ Drag* OrigamiFold::clone(const Info & info)
     std::vector<std::vector<int>> faces; 
     std::vector<std::vector<int>> vertex_crease_index; 
     std::vector<double> angles;
+    int optAlgoType; 
     size_t n_pt = (size_t)v[0];
     size_t n_crs = (size_t)v[1];
     size_t n_fs = (size_t)v[2]; 
@@ -228,7 +233,7 @@ Drag* OrigamiFold::clone(const Info & info)
     size_t n_nvc = (size_t)v[5]; 
 
     totalDataSize = 6 + n_pt * 3 + n_crs * 2 + n_crs * 1 + n_fs + n_fsp + 
-        n_nvv + n_nvc;
+        n_nvv + n_nvc + 1;
     if(!validateData(info))
         return NULL;
 
@@ -261,9 +266,11 @@ Drag* OrigamiFold::clone(const Info & info)
     for (int i = 0; i < n_crs; ++i)
     {
         angles.push_back(*it);
-        it ++;
+        it++;
     }
-    return new OrigamiFold(points, faces, creases, vertex_crease_index, angles);
+    optAlgoType = (int)*it; 
+    return new OrigamiFold(points, faces, creases, vertex_crease_index, angles, 
+        optAlgoType);
 }
 
 OrigamiFold::OrigamiFold(): m_opt(NULL) {}
@@ -273,9 +280,9 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
                          const std::vector<std::pair<int, int>>& creases,
                          const std::vector<std::vector<int>>& 
                             vertex_crease_index, 
-                         const std::vector<double>& angles)
+                         const std::vector<double>& angles, int optAlgoType)
 {
-    m_t = 1.4;
+    m_t = 3.0;
     m_opt = NULL;
     if (creases.size() != angles.size())
     {
@@ -332,7 +339,9 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
               nv->insertCrease(creases_[vertex_crease_index[count][i]]); 
          count++; 
     }
+    optAlgoType_ = optAlgoType; 
 }
+
 
 void OrigamiFold::ogmComputeNewPosition(SpringVertex* sv, std::vector<double>& new_crds)
 {
@@ -345,6 +354,15 @@ void OrigamiFold::ogmComputeNewPosition(SpringVertex* sv, std::vector<double>& n
     // we only move it once (rotate along creases of previous face or
     // current face. The two motion is equivalent since that point is on
     // the crease line)
+    /*
+    double dist = 0; 
+
+    dist = (new_crds[0] - 2.0)*(new_crds[0] - 2.0) + 
+        (new_crds[1])*(new_crds[1]) + 
+        (new_crds[2])*(new_crds[2]);
+    if (fabs(dist) < 1.0e-8) 
+        std::cout << std::endl; 
+    */
     Face* bface = op->getOgmFaces().back(); 
 
     bface->crsFoldCrds(new_crds); 
@@ -410,6 +428,7 @@ void Face::crsFoldCrds(std::vector<double>& new_crds) {
     for (int i = 0 ;i < 3; i++) 
          new_crds[i] = ans[i]; 
 }
+
 
 void Face::updateFoldingMatrix() {
     std_matrix M = Math::Eye(4); 
@@ -500,7 +519,7 @@ void Math::VecpVec(const std::vector<double>& v1,
         ans[i] = v1[i] + v2[i];
 }
 
-void Math::Cross3d(const std::vector<double>& u,
+void Math::Mcross3d(const std::vector<double>& u,
                      const std::vector<double>& v,
                      std::vector<double>& ans)
 {
@@ -514,11 +533,11 @@ double Math::TriProd(const std::vector<double>& a,
                      const std::vector<double>& c)
 {
     std::vector<double> crx(3, 0);
-    Math::Cross3d(b,c,crx);
-    return Math::Dot3d(a, crx);
+    Math::Mcross3d(b,c,crx);
+    return Math::Mdot3d(a, crx);
 }
 
-double Math::Dot3d(const std::vector<double>& a,
+double Math::Mdot3d(const std::vector<double>& a,
                    const std::vector<double>& b)
 {
     double ans = 0;
@@ -607,12 +626,13 @@ bool Math::leftOn(const std::vector<double>& p1, const std::vector<double>& p2,
  
     std::vector<double> ans(3, 0); 
 
-    Math::Cross3d(a, b, ans); 
+    Math::Mcross3d(a, b, ans); 
     if (fabs(ans[2]) < 1.0e-12 || ans[2] > 0) 
         return true; 
     else return false; 
 }
 
+/*
 void Math::getRotMatrix(const std::vector<double>& point, 
     const std::vector<double>& dir, std_matrix& mat, double rho) {
     double u = dir[0], v = dir[1], w = dir[2]; 
@@ -636,6 +656,66 @@ void Math::getRotMatrix(const std::vector<double>& point,
     mat[3][0] = mat[3][1] = mat[3][2] = 0.0; 
     mat[3][3] = 1.0; 
 }
+*/
+
+void Math::getRotMatrix(const std::vector<double>& point, 
+    const std::vector<double>& dir, std_matrix& mat, double rho) {
+    double a = dir[0], b = dir[1], c = dir[2]; 
+    double x = point[0], y = point[1], z = point[2]; 
+
+    std_matrix T = Math::Eye(4); 
+
+    T[0][3] = -x, T[1][3] = -y, T[2][3] = -z; 
+
+    std_matrix Ti = Math::Eye(4); 
+
+    Ti[0][3] = x, Ti[1][3] = y, Ti[2][3] = z;
+
+    double d = sqrt(b*b+c*c); 
+
+    std_matrix tempAns = Math::Mat(4, 4); 
+    
+    mat = T; 
+
+    std_matrix Rz = Math::Mat(4, 4);
+
+    Rz[0][0] = cos(rho), Rz[0][1] = -sin(rho);
+    Rz[1][0] = sin(rho), Rz[1][1] = cos(rho);
+    Rz[2][2] = Rz[3][3] = 1.0;
+    
+    std_matrix Ry = Math::Mat(4, 4);
+
+    Ry[0][0] = d, Ry[0][2] = -a;
+    Ry[1][1] = 1.0;
+    Ry[2][0] = a, Ry[2][2] = d;
+    Ry[3][3] = 1.0;
+
+    std_matrix Ryi = Math::Mat(4,4);
+
+    Math::transpose(Ry, Ryi); 
+
+    std_matrix Rx = Math::Eye(4);
+    std_matrix Rxi = Math::Eye(4);  
+
+    if (fabs(d) > 1.0e-12) {
+        Rx[1][1] = c/d, Rx[1][2] = -b/d; 
+        Rx[2][1] = b/d, Rx[2][2] = c/d; 
+        Math::transpose(Rx, Rxi);
+    }
+
+    Math::MatxMat(Rx, mat, tempAns); 
+    Math::assignMatToMat(tempAns, mat); 
+    Math::MatxMat(Ry, mat, tempAns); 
+    Math::assignMatToMat(tempAns, mat); 
+    Math::MatxMat(Rz, mat, tempAns);
+    Math::assignMatToMat(tempAns, mat);
+    Math::MatxMat(Ryi, mat, tempAns);
+    Math::assignMatToMat(tempAns, mat);
+    Math::MatxMat(Rxi, mat, tempAns);
+    Math::assignMatToMat(tempAns, mat);
+    Math::MatxMat(Ti, mat, tempAns);
+    Math::assignMatToMat(tempAns, mat);
+}
 
 void Math::assignMatToMat(const std_matrix& M1, std_matrix& M2) {
     int m = M1.size(); 
@@ -644,7 +724,29 @@ void Math::assignMatToMat(const std_matrix& M1, std_matrix& M2) {
     for (int i = 0; i < m; i++)
     for (int j = 0; j < n; j++) 
          M2[i][j] = M1[i][j]; 
+}
+
+void Math::transpose(std_matrix& M) {
+    int m = M.size(); 
+    int n = M[0].size(); 
+    
+    for (int i = 0; i < m; i++) 
+    for (int j = i+1; j < n; j++) {
+         int temp = M[i][j]; 
+    
+         M[i][j] = M[j][i]; 
+         M[j][i] = temp; 
+    }
 } 
+
+void Math::transpose(const std_matrix& M1, std_matrix& M2) {
+    int m = M2.size(); 
+    int n = M2[0].size(); 
+
+    for (int i = 0; i < m; i++)
+    for (int j = 0; j < n; j++) 
+         M2[i][j] = M1[j][i]; 
+}
 
 std::ostream& operator << (std::ostream& os, const std::vector<double>& v)
 {
