@@ -222,6 +222,7 @@ Drag* OrigamiFold::clone(const Info & info)
     std::vector<std::vector<double>> points;
     std::vector<std::pair<int, int>> creases;
     std::vector<std::vector<int>> faces; 
+    std::vector<std::vector<int>> mappings; 
     std::vector<std::vector<int>> vertex_crease_index; 
     std::vector<double> angles;
     int optAlgoType; 
@@ -229,15 +230,16 @@ Drag* OrigamiFold::clone(const Info & info)
     size_t n_crs = (size_t)v[1];
     size_t n_fs = (size_t)v[2]; 
     size_t n_fsp = (size_t)v[3]; 
-    size_t n_nvv = (size_t)v[4];
-    size_t n_nvc = (size_t)v[5]; 
+    size_t n_ncm = (size_t)v[4];
+    size_t n_nvv = (size_t)v[5];
+    size_t n_nvc = (size_t)v[6]; 
 
-    totalDataSize = 6 + n_pt * 3 + n_crs * 2 + n_crs * 1 + n_fs + n_fsp + 
-        n_nvv + n_nvc + 1;
+    totalDataSize = 7 + n_pt * 3 + n_crs * 2 + n_crs * 1 + n_fs + n_fsp + 
+        n_fs + n_ncm + n_nvv + n_nvc + 1;
     if(!validateData(info))
         return NULL;
 
-    double *it = &(v.front()) + 6;
+    double *it = &(v.front()) + 7;
     for (int i = 0; i < n_pt; ++i)
     {
         points.push_back({*it, *(it+1), *(it+2)});
@@ -256,6 +258,14 @@ Drag* OrigamiFold::clone(const Info & info)
 	 it = it + int(*it)+1; 
 	 faces.push_back(temp);
     }
+    for (int i = 0; i < n_fs; i++) {
+         std::vector<int> temp; 
+
+         for (int j = 0; j < int(*it); j++)
+              temp.push_back(*(it+j+1)); 
+         mappings.push_back(temp); 
+         it = it + int(*it) + 1; 
+    }
     for (int i = 0; i < n_nvv; i++) {
          std::vector<int> temp; 
          for (int j = 0; j < int(*it); j++)
@@ -269,8 +279,8 @@ Drag* OrigamiFold::clone(const Info & info)
         it++;
     }
     optAlgoType = (int)*it; 
-    return new OrigamiFold(points, faces, creases, vertex_crease_index, angles, 
-        optAlgoType);
+    return new OrigamiFold(points, faces, creases, mappings, 
+        vertex_crease_index, angles, optAlgoType);
 }
 
 OrigamiFold::OrigamiFold(): m_opt(NULL) {}
@@ -278,6 +288,7 @@ OrigamiFold::OrigamiFold(): m_opt(NULL) {}
 OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
 			 const std::vector<std::vector<int>>& fs, 
                          const std::vector<std::pair<int, int>>& creases,
+                         const std::vector<std::vector<int>>& mappings, 
                          const std::vector<std::vector<int>>& 
                             vertex_crease_index, 
                          const std::vector<double>& angles, int optAlgoType)
@@ -324,10 +335,13 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
     for (size_t i = 0; i < fs.size(); i++) {
 	 std::vector<Vertex*> tempFaceVertex; 
          
-	 tempFaceCrease.push_back(creases_[i]); 
+         for (int j = 0; j < mappings[i].size(); j++)
+              tempFaceCrease.push_back(creases_[mappings[i][j]]); 
+	// tempFaceCrease.push_back(creases_[i]); 
 	 for (size_t j = 0; j < fs[i].size(); j++) 
 	      tempFaceVertex.push_back(vertices_[fs[i][j]]); 
 	 faces_.push_back(new Face(tempFaceVertex, tempFaceCrease)); 
+         tempFaceCrease.clear(); 
     }
 
     int count = 0; 
@@ -363,6 +377,8 @@ void OrigamiFold::ogmComputeNewPosition(SpringVertex* sv, std::vector<double>& n
     if (fabs(dist) < 1.0e-8) 
         std::cout << std::endl; 
     */
+    if (op->getOgmFaces().size() == 0) return; 
+
     Face* bface = op->getOgmFaces().back(); 
 
     bface->crsFoldCrds(new_crds); 

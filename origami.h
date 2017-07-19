@@ -87,6 +87,7 @@ public:
 		const std::vector<std::vector<int>>&,
                 const std::vector<std::pair<int, int>>&,
                 const std::vector<std::vector<int>>&, 
+                const std::vector<std::vector<int>>&, 
                 const std::vector<double>&, int);
     OrigamiFold();
     ~OrigamiFold();
