@@ -150,7 +150,6 @@ void OrigamiFold::findNextFoldingAngle()
             success = true;
             std::cout << "rho = " << rho << std::endl;
             if (Math::dist3d(rho_delta, rho_T) < 1.0e-3) {
-                iter = maxIter; 
                 std::cout << "convergence reached: err = 1e-3" 
                 << "folding angle = [" << rho_delta << "]" << std::endl; 
                 std::cout << "Folding process is terminated" << std::endl; 
@@ -222,8 +221,9 @@ Drag* OrigamiFold::clone(const Info & info)
     std::vector<std::vector<double>> points;
     std::vector<std::pair<int, int>> creases;
     std::vector<std::vector<int>> faces; 
+    std::vector<int> typeIdx; 
+    std::vector<double> cen; 
     std::vector<std::vector<int>> mappings; 
-    std::vector<std::vector<int>> vertex_crease_index; 
     std::vector<double> angles;
     int optAlgoType; 
     size_t n_pt = (size_t)v[0];
@@ -231,15 +231,13 @@ Drag* OrigamiFold::clone(const Info & info)
     size_t n_fs = (size_t)v[2]; 
     size_t n_fsp = (size_t)v[3]; 
     size_t n_ncm = (size_t)v[4];
-    size_t n_nvv = (size_t)v[5];
-    size_t n_nvc = (size_t)v[6]; 
 
-    totalDataSize = 7 + n_pt * 3 + n_crs * 2 + n_crs * 1 + n_fs + n_fsp + 
-        n_fs + n_ncm + n_nvv + n_nvc + 1;
+    totalDataSize = 5 + n_pt * 3 + n_crs * 2 + n_crs * 1 + 3*n_fs + n_fsp + 
+        3 + n_ncm + 1;
     if(!validateData(info))
         return NULL;
 
-    double *it = &(v.front()) + 7;
+    double *it = &(v.front()) + 5;
     for (int i = 0; i < n_pt; ++i)
     {
         points.push_back({*it, *(it+1), *(it+2)});
@@ -250,7 +248,11 @@ Drag* OrigamiFold::clone(const Info & info)
         creases.push_back(std::make_pair(int(*it), int(*(it+1))));
         it += 2;
     }
+    cen.resize(3); 
+    std::copy(it, it+3, cen.begin()); 
+    it += 3; 
     for (int i = 0; i < n_fs; i++) {
+         typeIdx.push_back(*(it++)); 
 	 std::vector<int> temp; 
          for (int j = 0; j < int(*it); j++) {
 	      temp.push_back(int(*(it+j+1))); 
@@ -266,31 +268,24 @@ Drag* OrigamiFold::clone(const Info & info)
          mappings.push_back(temp); 
          it = it + int(*it) + 1; 
     }
-    for (int i = 0; i < n_nvv; i++) {
-         std::vector<int> temp; 
-         for (int j = 0; j < int(*it); j++)
-              temp.push_back(int(*(it+j+1))); 
-         it = it + int(*it) + 1; 
-         vertex_crease_index.push_back(temp); 
-    }
     for (int i = 0; i < n_crs; ++i)
     {
         angles.push_back(*it);
         it++;
     }
     optAlgoType = (int)*it; 
-    return new OrigamiFold(points, faces, creases, mappings, 
-        vertex_crease_index, angles, optAlgoType);
+    return new OrigamiFold(points, cen, typeIdx, faces, creases, mappings, 
+        angles, optAlgoType);
 }
 
 OrigamiFold::OrigamiFold(): m_opt(NULL) {}
 
 OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
+                         const std::vector<double>& cen, 
+                         const std::vector<int>& typeIdx, 
 			 const std::vector<std::vector<int>>& fs, 
                          const std::vector<std::pair<int, int>>& creases,
                          const std::vector<std::vector<int>>& mappings, 
-                         const std::vector<std::vector<int>>& 
-                            vertex_crease_index, 
                          const std::vector<double>& angles, int optAlgoType)
 {
     m_t = 3.0;
@@ -340,18 +335,21 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
 	// tempFaceCrease.push_back(creases_[i]); 
 	 for (size_t j = 0; j < fs[i].size(); j++) 
 	      tempFaceVertex.push_back(vertices_[fs[i][j]]); 
-	 faces_.push_back(new Face(tempFaceVertex, tempFaceCrease)); 
+         if (typeIdx[i])
+	     faces_.push_back(new FaceOneArc(tempFaceVertex, 
+                tempFaceCrease, cen)); 
+         else 
+             faces_.push_back(new Polygon(tempFaceVertex, tempFaceCrease)); 
          tempFaceCrease.clear(); 
     }
-
-    int count = 0; 
-
     for (auto it : vertices_) {
          if (!it->judgeNonVirtual()) continue; 
+
          Nvvertex* nv = static_cast<Nvvertex*>(it); 
-         for (size_t i = 0; i < vertex_crease_index[count].size(); i++) 
-              nv->insertCrease(creases_[vertex_crease_index[count][i]]); 
-         count++; 
+
+         for (int i = 0; i < creases.size(); i++) 
+              if (creases[i].first == nv->getIdx())
+                  nv->insertCrease(creases_[i]);         
     }
     optAlgoType_ = optAlgoType; 
 }
@@ -422,19 +420,6 @@ Face::Face(const std::vector<Vertex*>& vv, const std::vector<Crease*>& vc) {
     fd_matrix = Math::Mat(4, 4);
 }
 
-bool Face::poInside(OgmPoint* op) {
-    int size = vertices_.size(); 
-
-    for (size_t i = 0; i < size-1; i++)
-         if (Math::leftOn(vertices_[i]->getCoords(), 
-            vertices_[i+1]->getCoords(), op->getInitialCoords())) continue; 
-         else return false; 
-    if (!Math::leftOn(vertices_[size-1]->getCoords(), 
-            vertices_[0]->getCoords(), op->getInitialCoords()))
-        return false; 
-    return true; 
-}
-
 void Face::crsFoldCrds(std::vector<double>& new_crds) {
     std::vector<double> coords(new_crds); 
     std::vector<double> ans(4, 0); 
@@ -455,6 +440,34 @@ void Face::updateFoldingMatrix() {
          Math::assignMatToMat(tempAns, M); 
     }
     Math::assignMatToMat(M, fd_matrix); 
+}
+
+bool Polygon::poInside(OgmPoint* op) {
+    std::vector<Vertex*> vertices = getVertices();
+    int size = vertices.size();
+
+    for (size_t i = 0; i < size-1; i++)
+         if (Math::leftOnStraightLine(vertices[i]->getCoords(),
+            vertices[i+1]->getCoords(), op->getInitialCoords())) continue;
+         else return false;
+    if (!Math::leftOnStraightLine(vertices[size-1]->getCoords(),
+            vertices[0]->getCoords(), op->getInitialCoords()))
+        return false;
+    return true;
+}
+
+bool FaceOneArc::poInside(OgmPoint* op) {
+    std::vector<Vertex*> vertices = getVertices(); 
+    int size = vertices.size();
+
+    for (size_t i = 0; i < size-1; i++)
+         if (Math::leftOnStraightLine(vertices[i]->getCoords(),
+            vertices[i+1]->getCoords(), op->getInitialCoords())) continue;
+         else return false;
+    if (!Math::leftOnArc(vertices[size-1]->getCoords(),
+            vertices[0]->getCoords(), center, op->getInitialCoords()))
+        return false;
+    return true;
 }
 
 // class Math
@@ -630,8 +643,8 @@ void Math::Normalize(std::vector<double>& v)
         v[i] /= vm;
 }
 
-bool Math::leftOn(const std::vector<double>& p1, const std::vector<double>& p2,
-     const std::vector<double>& q) {
+bool Math::leftOnStraightLine(const std::vector<double>& p1, 
+        const std::vector<double>& p2, const std::vector<double>& q) {
     std::vector<double> a(3, 0);
  
     Math::VecmVec(p2, p1,a);
@@ -644,6 +657,17 @@ bool Math::leftOn(const std::vector<double>& p1, const std::vector<double>& p2,
 
     Math::Mcross3d(a, b, ans); 
     if (fabs(ans[2]) < 1.0e-12 || ans[2] > 0) 
+        return true; 
+    else return false; 
+}
+
+bool Math::leftOnArc(const std::vector<double>& p1, 
+        const std::vector<double>& p2, const std::vector<double>& cen, 
+        const std::vector<double>& q) {
+    double radius = dist3d(p1, cen); 
+    double dist = dist3d(q, cen); 
+
+    if (dist < radius || fabs(dist-radius) < 1.0e-8) 
         return true; 
     else return false; 
 }
@@ -674,6 +698,9 @@ void Math::getRotMatrix(const std::vector<double>& point,
 }
 */
 
+// rotation matrix to rotate point rho around axis 
+// If stand at (x, y ,z) and look towards dir direction, 
+// the rotation is performed clockwise. 
 void Math::getRotMatrix(const std::vector<double>& point, 
     const std::vector<double>& dir, std_matrix& mat, double rho) {
     double a = dir[0], b = dir[1], c = dir[2]; 

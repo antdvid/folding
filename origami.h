@@ -11,10 +11,11 @@ class Vertex {
     std::vector<double> coords;
     bool nv; 
 public : 
+    std::vector<double> getCoords() { return coords; }
+    int getIdx() { return index; }
+    bool judgeNonVirtual() { return nv; }
     Vertex(const std::vector<double>& cds, int idx, bool nonVir = false) : 
         coords(cds), index(idx), nv(nonVir) {};
-    std::vector<double> getCoords() { return coords; }
-    bool judgeNonVirtual() { return nv; }
 };
 
 class Nvvertex : public Vertex {
@@ -54,13 +55,36 @@ class Face {
     // folding matrix corresponds to crease lines l1, l2, ..., lk in 
     // crsAlongPath
     std_matrix fd_matrix; 
+    bool type; 
+protected: 
+    void setType(int i) { type = i; }
+    std::vector<Vertex*> getVertices() { return vertices_; }
 public :
     Face(const std::vector<Vertex*>&, const std::vector<Crease*>&); 
-    bool poInside(OgmPoint* op);
+    virtual bool poInside(OgmPoint*) = 0;
     std::vector<Crease*> getCrsAlongPath() { return crsAlongPath; }
     void crsFoldCrds(std::vector<double>&); 
     std_matrix& getFoldingMatrix() { return fd_matrix; }
     void updateFoldingMatrix(); 
+    virtual ~Face() {}
+};
+
+class Polygon : public Face {
+public : 
+    Polygon(const std::vector<Vertex*>& vv, const std::vector<Crease*>& cv) : 
+        Face(vv, cv) { setType(0); }
+    virtual bool poInside(OgmPoint*); 
+}; 
+
+// the face with only 1 arc and others are straight lines
+class FaceOneArc : public Face {
+    std::vector<double> center; 
+public : 
+    FaceOneArc(const std::vector<Vertex*>& vv, const std::vector<Crease*>& cv, 
+        const std::vector<double>& cen) : Face(vv, cv) { 
+            center.resize(3); std::copy(cen.begin(), cen.end(), 
+            center.begin()); setType(1); }
+    virtual bool poInside(OgmPoint*); 
 };
 
 class OgmPoint : public SpringVertex
@@ -84,9 +108,9 @@ public:
     void setAccel(SpringVertex*);
     std::string id() {return "OrigamiDrag";}
     OrigamiFold(const std::vector<std::vector<double>>&,
+                const std::vector<double>&, const std::vector<int>&,
 		const std::vector<std::vector<int>>&,
                 const std::vector<std::pair<int, int>>&,
-                const std::vector<std::vector<int>>&, 
                 const std::vector<std::vector<int>>&, 
                 const std::vector<double>&, int);
     OrigamiFold();
@@ -156,8 +180,11 @@ public:
     static void Mcross3d(const std::vector<double>& u,
                      const std::vector<double>& v,
                      std::vector<double>& ans);
-    static bool leftOn(const std::vector<double>& p1,
-                const std::vector<double>& p2, const std::vector<double>& q);
+    static bool leftOnStraightLine(const std::vector<double>&,
+                const std::vector<double>&, const std::vector<double>&);
+    static bool leftOnArc(const std::vector<double>&,
+                const std::vector<double>&, 
+                const std::vector<double>&, const std::vector<double>&); 
     static void getRotMatrix(const std::vector<double>&, 
         const std::vector<double>&, std_matrix& , double); 
     static void transpose(std_matrix&);
