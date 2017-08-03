@@ -23,14 +23,13 @@ class BendingForce: public SpringSolver::ExtForceInterface
     void (BendingForce::*method[num])(POINT*,TRI*, TRI*); 
 public: 
     double* getExternalForce(SpringVertex* sv);
-    double calOriLeng(int, int, TRI*, TRI*);
     void computeExternalForce();
     void getParaFromFile(const char*); 
     double& getBendStiff() { return bends; }
     double& getBendDamp() { return bendd; }
     int methodIndex() { return index; }
     BendingForce(INTERFACE* _intfc, double s = 0.01, double d = 0.0); 
-    
+    static double calOriLeng(int, int, TRI*, TRI*);   
 };
 /*
 class particleBending : public BendingForce {

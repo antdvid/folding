@@ -15,6 +15,7 @@ void initFabricCircle(Front* front, std::ifstream&, SURFACE* &surf);
 void initFabricRectangle(Front* front, std::ifstream&, SURFACE* &surf);
 bool findAndLocate(std::ifstream&, const char*);
 bool getString(std::ifstream&, const char*);
+void getMassPoints(INTERFACE*); 
 
 int main(int argc, char** argv)
 {
@@ -38,7 +39,7 @@ int main(int argc, char** argv)
 		
 	SURFACE* surf;
 	initTestModule(&front,surf);
-
+        getMassPoints(front.interf); 
 	//Draw initial shape
 	FT_Draw(&front);
 	FT_AddTimeStepToCounter(&front);
@@ -307,4 +308,37 @@ bool getString(std::ifstream& fin, const char* mesg)
     fin.clear();
     fin.seekg(position);
     return false;
+}
+
+void getMassPoints(INTERFACE* intfc) {
+    SURFACE** s; 
+    std::ofstream fout("massPoint.txt"); 
+
+    if (!fout.is_open()) {
+        std::cout << "Open file error!\n"; 
+        exit(EXIT_FAILURE); 
+    }
+
+    intfc_surface_loop(intfc, s) {
+        if (wave_type(*s) != ELASTIC_BOUNDARY)
+            continue; 
+
+        TRI* tri; 
+
+        surf_tri_loop(*s, tri) 
+            for (int i = 0; i < 3; i++)
+                 sorted(Point_of_tri(tri)[i]) = NO; 
+        surf_tri_loop(*s, tri) {
+            for (int i = 0; i < 3; i++) {
+                 POINT* p = Point_of_tri(tri)[i]; 
+
+                 if (sorted(p)) continue; 
+                 sorted(p) = YES; 
+                 for (int j = 0; j < 3; j++)  
+                      fout << Coords(p)[j] << ' '; 
+                 fout << std::endl; 
+            }
+        }
+    } 
+    fout.close(); 
 }
