@@ -31,6 +31,7 @@ protected:
     double getFrameStepSize() {return max_dt;}
     std::vector<Drag*> drags;
     SpringSolver::SpringParameter spring_params;
+    double bendCoeff = 0;
 private:
     static double max_dt;
     static double m_thickness;
@@ -51,6 +52,7 @@ private:
     void doFolding(Drag*,SpringSolver*,CollisionSolver*);
     void straightenStrings();
     double computePotentialEnergy();
+    double computeBendingEnergy();
     void recordData(double, std::string);
     void appendDataToFile(double, double, std::string);
     void deleteLines(); 

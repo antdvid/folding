@@ -482,10 +482,17 @@ void cgalParaSurf::getParaFromFile(std::ifstream& fin) {
     }
     else 
         fin >> num_lines; 
+    if (!findAndLocate(fin, "Enter the number of constraint points" 
+        "between two lines:")) {
+        std::cout << "use default!\n"; 
+        num_cons = 10; 
+    }
+    else 
+        fin >> num_cons; 
 }
 
 void cgalParaSurf::addCgalConst() {
-    setNumRegConst(num_lines * 5); 
+    setNumRegConst(num_lines * num_cons); 
 
     double theta = 2 * PI / (getNumRegConst());
     Vertex_handle v1, v2;
@@ -509,14 +516,15 @@ void cgalParaSurf::addCgalConst() {
     }
     v1 = insertPointToCDT(Cgal_Point(getCenter()[0], getCenter()[1]));
     for (int i = 0; i < num_lines; i++) {
-         insertConstraintToCDT(v1, v[i*5]);
+         insertConstraintToCDT(v1, v[i*10]);
     }
     delete [] v; 
     std::ofstream fout("points.txt"); 
 
     for (int i = 0; i < num_lines; i++) {
-	 fout << regConPoint[i*5].first << ' ' << regConPoint[i*5].second 
-		<< ' ' << 18 << std::endl; 
+	 fout << regConPoint[i*num_cons].first << ' ' << 
+            regConPoint[i*num_cons].second 
+		<< ' ' << readHeight() << std::endl; 
     }
     for (int i = 0; i < num_lines + 1; i++) {
          fout << 0 << ' ' << i + 1 << std::endl;

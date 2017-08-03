@@ -58,7 +58,7 @@ void Folder::addDragsFromFile(std::string fname) {
 	     {
 	         std::stod(s);
 	     }
-	     catch(...)
+	     catch(std::invalid_argument& ia)
 	     {
 		 continue;
 	     }
@@ -115,7 +115,8 @@ void Folder::setParaFromFile(const char* s)
     }
     else
         std::cout << "use default value!\n";
-
+    if (findAndLocate(fin, "Enter fabric bend stiffness constant:"))
+        fin >> bendCoeff;
     fin.close(); 
 }
 
@@ -175,6 +176,47 @@ void Folder3d::doFolding() {
 	sp_solver->resetVelocity();
     }
     straightenStrings();
+}
+
+double Folder3d::computeBendingEnergy() {
+    SURFACE** s;
+    TRI* tri;
+    double ener = 0;
+
+    intfc_surface_loop(m_intfc, s) {
+        if (wave_type(*s) != ELASTIC_BOUNDARY) continue;
+        if (is_bdry(*s)) continue;
+        surf_tri_loop(*s, tri) {
+            std::set<POINT*> pointset;
+
+            for (int i = 0; i < 3; i++)
+                 pointset.insert(Point_of_tri(tri)[i]);
+            for (int i = 0; i < 3; i++) {
+                 POINT* p1 = Point_of_tri(tri)[i];
+                 TRI* n_tri = Tri_on_side(tri, (i+1)%3);
+
+                 if (is_side_bdry(tri, (i+1)%3)) continue;
+
+                 int index1 = i, index2;
+                 POINT* p2;
+
+                 for (int i = 0; i < 3; i++)
+                      if (pointset.find(Point_of_tri(n_tri)[i]) ==
+                                pointset.end()) {
+                          index2 = i;
+                          p2 = Point_of_tri(n_tri)[i];
+                          break;
+                      }
+
+                 double oriLen = BendingForce::calOriLeng(index1,
+                        index2, tri, n_tri);
+                 double len = separation(p1, p2, 3);
+
+                 ener += 0.5*bendCoeff*pow(len-oriLen, 2.0);
+            }
+        }
+    }
+    return ener*0.5;
 }
 
 double Folder3d::computePotentialEnergy()
@@ -245,7 +287,6 @@ void Folder3d::doFolding(
     movie->recordMovieFrame();
 }
 
-// friend function to Folder 
 // used to check force for the unregistered point whose other two points on 
 // the same triangle are registered points
 void Folder3d::check_force(SpringSolver* sp_solver)
@@ -339,6 +380,7 @@ void Folder3d::appendDataToFile(double x, double y, std::string fname)
 void Folder3d::recordData(double t, std::string out_dir)
 {
     appendDataToFile(t, computePotentialEnergy(), out_dir+"/"+"energy");
+    appendDataToFile(t, computeBendingEnergy(), out_dir+"/"+"bending_energy");
 }
 
 void Folder3d::setupMovie(std::string dname, std::string oname, 

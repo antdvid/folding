@@ -111,6 +111,7 @@ public :
 
 class cgalParaSurf : public cgalCircleSurf {
     int num_lines; 
+    int num_cons; 
 public : 
     cgalParaSurf(INTERFACE* intfc, SURFACE** surf) : 
 		cgalCircleSurf(intfc, surf) {}

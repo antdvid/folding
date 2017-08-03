@@ -1,7 +1,7 @@
 Domain limit in 0-th dimension: 0.0 1.0 
 Domain limit in 1-th dimension: 0.0 1.0 
 Domain limit in 2-th dimension: 0.0 1.0 
-Computational grid: 30 30 30 
+Computational grid: 100 100 100 
 Lower boundary in 0-th dimension: DIRICHLET_BOUNDARY
 Upper boundary in 0-th dimension: DIRICHLET_BOUNDARY
 Lower boundary in 1-th dimension: DIRICHLET_BOUNDARY
@@ -18,10 +18,12 @@ Enter the radius of the canopy: 0.35
 Enter fabric spring constant: 2000
 Enter fabric friction constant: 0.5
 Enter fabric point mass: 0.0005
-Enter fabric bend stiffness constant: 0
-Enter fabric bend damping constant: 0
+Enter fabric bend stiffness constant: 100
+Enter fabric bend damping constant: 0.025
 Enter the coefficient for restricting triangular size: 1
 Enter the bound for restricting minimum angle: 0.3
+Enter the number of gores: 16
+Enter the number of constraint points between two lines: 10
 Enter number of extra constraints: 16
 Enter extra constraint points pair: 0.5 0.5    0.8500    0.5000 
 Enter extra constraint points pair: 0.5 0.5    0.8234    0.6339  
