@@ -34,26 +34,29 @@ class cgalSurf
     double k_dx; 
     // used to provide upper bound for minimum angle 
     double c_bound; 
-    double height; 
-    std::vector<double> extConPoint;
+    double height_; 
+    std::vector<double> extConPoint_;
+    bool hole_ = false; 
 protected :
-    void setHeight(double h) { height = h; } 
-    double readHeight() const { return height; }
-    void setCGALCoeffRestricSize(double k) { k_dx = k; }
-    double readCGALCoeffRestricSize() const { return k_dx; }
-    void setCGALMinAngleUb(double c) { c_bound = c; }
-    double readCGALMinAngleUb() const { return c_bound; }
+    void height(double h) { height_ = h; } 
+    double height() const { return height_; }
+    void CGALCoeffRestricSize(double k) { k_dx = k; }
+    double CGALCoeffRestricSize() const { return k_dx; }
+    void CGALMinAngleUb(double c) { c_bound = c; }
+    double CGALMinAngleUb() const { return c_bound; }
     Vertex_handle insertPointToCDT(Cgal_Point a) { return cdt.insert(a); }
     void insertConstraintToCDT(Vertex_handle v1, Vertex_handle v2) { 
 	cdt.insert_constraint(v1, v2); }
     CDT readCDT() const { return cdt; }
     CDT& readCDT() { return cdt; }
-    std::vector<double> readExtConPoint() const { return extConPoint; }
-    void setExtConPoint(double p, int index) { extConPoint[index] = p; }
-    INTERFACE* readIntface() { return c_intfc; }
-    int readNumFinFace() const { return num_finite_face; }
-    void setNumFinFace(int num) { num_finite_face = num; }
-    SURFACE** readSurface() { return c_surf; }
+    std::vector<double> extConPoint() const { return extConPoint_; }
+    void extConPoint(double p, int index) { extConPoint_[index] = p; }
+    INTERFACE* interface() { return c_intfc; }
+    int numFinFace() const { return num_finite_face; }
+    void numFinFace(int num) { num_finite_face = num; }
+    SURFACE** surface() { return c_surf; }
+    bool hole() const { return hole_; }
+    void hole(bool b) { hole_ = b; }
 public :
     // std::ifstream& can't be used in constructor
     // any constructor involving it been added =delete in the end
@@ -64,7 +67,7 @@ public :
     void setCurveZeroLength(CURVE*, double); 
     void setMonoCompBdryZeroLength(); 
     // by generated tri mesh generates surface
-    void cgalGenSurf(); 
+    virtual void cgalGenSurf(); 
     // add boundary constraint. different for differernt shape
     virtual void addCgalConst() = 0;
     // preprocess and generate tri mesh 
@@ -80,9 +83,9 @@ class cgalRectangleSurf : public cgalSurf
 public :
     cgalRectangleSurf(INTERFACE* intfc, SURFACE** surf) :
     		cgalSurf(intfc, surf) {}
-    virtual void addCgalConst(); 
-    virtual void cgalTriMesh(std::ifstream&); 
-    virtual void getParaFromFile(std::ifstream&); 
+    void addCgalConst(); 
+    void cgalTriMesh(std::ifstream&); 
+    void getParaFromFile(std::ifstream&); 
     ~cgalRectangleSurf() {}
 };
 
@@ -97,14 +100,14 @@ protected :
     void setCenter(double c1, double c2) { cen[0] = c1; cen[1] = c2; }
     double getRadius() const { return radius; }
     void setRadius(double r) { radius = r; }
-    int getNumRegConst() const { return num_reg_const; }
-    void setNumRegConst(int num) { num_reg_const = num; } 
+    int numRegConst() const { return num_reg_const; }
+    void numRegConst(int num) { num_reg_const = num; } 
 public : 
     cgalCircleSurf(INTERFACE* intfc, SURFACE** surf) : 
 		cgalSurf(intfc, surf) { num_reg_const = 150; }
-    virtual void addCgalConst();
-    virtual void cgalTriMesh(std::ifstream&);
-    virtual void getParaFromFile(std::ifstream&);
+    void addCgalConst();
+    void cgalTriMesh(std::ifstream&);
+    void getParaFromFile(std::ifstream&);
     double distance(double*, double*, int); 
     ~cgalCircleSurf() {}
 };
@@ -112,12 +115,13 @@ public :
 class cgalParaSurf : public cgalCircleSurf {
     int num_lines; 
     int num_cons; 
+    double innerRad; 
 public : 
     cgalParaSurf(INTERFACE* intfc, SURFACE** surf) : 
 		cgalCircleSurf(intfc, surf) {}
-    virtual void addCgalConst(); 
-    virtual void getParaFromFile(std::ifstream&); 
+    void cgalGenSurf(); 
+    void addCgalConst(); 
+    void getParaFromFile(std::ifstream&); 
     ~cgalParaSurf() {}; 
 };
-
 #endif

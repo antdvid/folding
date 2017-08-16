@@ -2,7 +2,7 @@
 #include <iostream>
 #include <iterator>
 #include <fstream>
-
+#include <typeinfo>
 static std::ostream& operator << (std::ostream& os, const std::vector<double>&);
 static std::ostream& operator << (std::ostream& os, const std_matrix&);
 
@@ -13,10 +13,22 @@ OgmPoint::OgmPoint(SpringVertex& sv) : SpringVertex(sv)
     std::copy(sv.getCoords(), sv.getCoords()+3, x0.begin());
 }
 
+// class optAlgoSingleton
+optAlgoSingleton::optAlgoSingleton() {
+    mymap.insert({"GN_DIRECT_L_RAND", 2}); 
+    mymap.insert({"LN_COBYLA", 25}); 
+    mymap.insert({"LN_NELDERMEAD", 28}); 
+    mymap.insert({"LD_TNEWTON_PRECOND", 17}); 
+}
+
+//class faceTypeSingleton
+faceTypeSingleton::faceTypeSingleton() {
+    mymap.insert({"POLYGON", 0}); 
+    mymap.insert({"FACEONEARC", 1});
+    mymap.insert({"FACETWOARC", 2});
+}
+
 //class OrigamiFold
-const std::unordered_map<std::string, int> OrigamiFold::optAlgoMap ({
-        {"GN_DIRECT_L_RAND", 2}, {"LN_COBYLA", 25}, {"LN_NELDERMEAD", 28}, 
-        {"LD_TNEWTON_PRECOND", 17}});
 void OrigamiFold::preprocess(std::vector<SpringVertex*>& pts)
 {
      if (first)
@@ -99,6 +111,7 @@ double OrigamiFold::targetFunction(
     for (size_t i = 0; i < creases_.size(); i++) {
          creases_[i]->updateRotMatrix(x[i]); 
     }
+    Nvvertex* nvId; 
     for (auto it : vertices_) {
          if (!it->judgeNonVirtual()) continue; 
          Nvvertex* nv = static_cast<Nvvertex*>(it); 
@@ -335,11 +348,14 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
 	// tempFaceCrease.push_back(creases_[i]); 
 	 for (size_t j = 0; j < fs[i].size(); j++) 
 	      tempFaceVertex.push_back(vertices_[fs[i][j]]); 
-         if (typeIdx[i])
-	     faces_.push_back(new FaceOneArc(tempFaceVertex, 
-                tempFaceCrease, cen)); 
-         else 
-             faces_.push_back(new Polygon(tempFaceVertex, tempFaceCrease)); 
+         switch (typeIdx[i]) {
+            case origamiSurface::FACEONEARC: 
+	        faces_.push_back(new FaceOneArc(tempFaceVertex, 
+                    tempFaceCrease, cen));
+                break;  
+            case origamiSurface::POLYGON: 
+                faces_.push_back(new Polygon(tempFaceVertex, tempFaceCrease)); 
+         }
          tempFaceCrease.clear(); 
     }
     for (auto it : vertices_) {
@@ -366,15 +382,6 @@ void OrigamiFold::ogmComputeNewPosition(SpringVertex* sv, std::vector<double>& n
     // we only move it once (rotate along creases of previous face or
     // current face. The two motion is equivalent since that point is on
     // the crease line)
-    /*
-    double dist = 0; 
-
-    dist = (new_crds[0] - 2.0)*(new_crds[0] - 2.0) + 
-        (new_crds[1])*(new_crds[1]) + 
-        (new_crds[2])*(new_crds[2]);
-    if (fabs(dist) < 1.0e-8) 
-        std::cout << std::endl; 
-    */
     if (op->getOgmFaces().size() == 0) return; 
 
     Face* bface = op->getOgmFaces().back(); 
@@ -442,6 +449,8 @@ void Face::updateFoldingMatrix() {
     Math::assignMatToMat(M, fd_matrix); 
 }
 
+Face::~Face() {}
+
 bool Polygon::poInside(OgmPoint* op) {
     std::vector<Vertex*> vertices = getVertices();
     int size = vertices.size();
@@ -470,6 +479,24 @@ bool FaceOneArc::poInside(OgmPoint* op) {
     return true;
 }
 
+bool FaceTwoArc::poInside(OgmPoint* op) {
+    std::vector<Vertex*> vertices = getVertices(); 
+    
+    if (vertices.size() != 4) 
+        throw std::runtime_error("FACETWOARC must have for edges!");
+    for (size_t i = 0; i < 4; i++) {
+         if (i & 1) 
+             if (Math::leftOnArc(vertices[i]->getCoords(), 
+                vertices[i+1]->getCoords(), center, 
+                op->getInitialCoords())) continue; 
+             else return false;
+         else 
+             if (Math::leftOnStraightLine(vertices[i]->getCoords(), 
+        vertices[i+1]->getCoords(), op->getInitialCoords())) continue; 
+            else return false; 
+    }
+    return true; 
+}
 // class Math
 void Math::MatxMat(const std::vector<std::vector<double>> & M1,
                    const std::vector<std::vector<double>> & M2,

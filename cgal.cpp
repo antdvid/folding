@@ -26,10 +26,10 @@ void cgalSurf::getExtraConstPoint(std::ifstream& fin)
              fin >> p2[0] >> p2[1];
              std::cout << p1[0] << " " << p1[1] << std::endl;
              std::cout << p2[0] << " " << p2[1] << std::endl;
-	     extConPoint.push_back(p1[0]);
-	     extConPoint.push_back(p1[1]);
-	     extConPoint.push_back(p2[0]);
-             extConPoint.push_back(p2[1]);
+	     extConPoint_.push_back(p1[0]);
+	     extConPoint_.push_back(p1[1]);
+	     extConPoint_.push_back(p2[0]);
+             extConPoint_.push_back(p2[1]);
          }
     }
 }
@@ -114,7 +114,7 @@ void cgalSurf::cgalGenSurf()
          index.push_back(i);
          vertex[i*3] = vit->point()[0];
          vertex[i*3+1] = vit->point()[1];
-         vertex[i*3+2] = height;
+         vertex[i*3+2] = height_;
     }
 
     std::vector<POINT*> points;
@@ -207,8 +207,8 @@ void cgalRectangleSurf::getParaFromFile(std::ifstream& fin)
     double h;
  
     fin >> h;
-    setHeight(h); 
-    std::cout << readHeight() << std::endl;
+    height(h); 
+    std::cout << height() << std::endl;
     if (!findAndLocate(fin, "Enter lower bounds of the rectangle:"))
         clean_up(ERROR);
     fin >> lower[0] >> lower[1];
@@ -222,16 +222,16 @@ void cgalRectangleSurf::getParaFromFile(std::ifstream& fin)
 	double k; 
 
         fin >> k;
-	setCGALCoeffRestricSize(k); 
+	CGALCoeffRestricSize(k); 
     }
-    std::cout << readCGALCoeffRestricSize() << std::endl;
+    std::cout << CGALCoeffRestricSize() << std::endl;
     if (findAndLocate(fin, "Enter the bound for restricting minimum angle:")) {
 	double c; 
 
 	fin >> c;
-	setCGALMinAngleUb(c); 
+	CGALMinAngleUb(c); 
     } 
-    std::cout << readCGALMinAngleUb() << std::endl; 
+    std::cout << CGALMinAngleUb() << std::endl; 
 }
 
 void cgalRectangleSurf::addCgalConst()
@@ -248,12 +248,12 @@ void cgalRectangleSurf::addCgalConst()
     insertConstraintToCDT(v3, v4);
     insertConstraintToCDT(v4, v1);
     // add extra constraint
-    for (size_t i = 0 ; i < readExtConPoint().size(); i += 4)
+    for (size_t i = 0 ; i < extConPoint().size(); i += 4)
     {
-	 v1 = insertPointToCDT(Cgal_Point(readExtConPoint()[i], 
-		readExtConPoint()[i+1]));
-         v2 = insertPointToCDT(Cgal_Point(readExtConPoint()[i+2], 
-		readExtConPoint()[i+3]));
+	 v1 = insertPointToCDT(Cgal_Point(extConPoint()[i], 
+		extConPoint()[i+1]));
+         v2 = insertPointToCDT(Cgal_Point(extConPoint()[i+2], 
+		extConPoint()[i+3]));
          insertConstraintToCDT(v1, v2); 
     }
 }
@@ -268,28 +268,28 @@ void cgalRectangleSurf::cgalTriMesh(std::ifstream& fin)
     getExtraConstPoint(fin); 
     addCgalConst(); 
 
-    double cri_dx = readCGALCoeffRestricSize() * 
-		readIntface()->table->rect_grid.h[0];
+    double cri_dx = CGALCoeffRestricSize() * 
+		interface()->table->rect_grid.h[0];
 
     // refine the domain by a constrained delaunay triangulation 
     // c_bound used to bound minimun angle. 
     // sin(alpha_min) = sqrt(c_bound)
     //cri_dx used to bound triangle edge size
     CGAL::refine_Delaunay_mesh_2(readCDT(), seeds.begin(), seeds.end(), 
-		Criteria(readCGALMinAngleUb(), cri_dx));
+		Criteria(CGALMinAngleUb(), cri_dx));
 
-    int num = readNumFinFace(); 
+    int num = numFinFace(); 
 
     for (fit = readCDT().finite_faces_begin(); 
 		fit != readCDT().finite_faces_end(); fit++) 
          num++; 
-    setNumFinFace(num); 
+    numFinFace(num); 
     cgalGenSurf();
-    wave_type(*readSurface()) = ELASTIC_BOUNDARY;
-    FT_InstallSurfEdge(*readSurface(), MONO_COMP_HSBDRY);
+    wave_type(*surface()) = ELASTIC_BOUNDARY;
+    FT_InstallSurfEdge(*surface(), MONO_COMP_HSBDRY);
     setSurfZeroMesh();
     setMonoCompBdryZeroLength();
-    if (consistent_interface(readIntface()) == NO)
+    if (consistent_interface(interface()) == NO)
         clean_up(ERROR);
 }
 
@@ -312,8 +312,8 @@ void cgalCircleSurf::getParaFromFile(std::ifstream& fin)
     double h; 
 
     fin >> h;
-    setHeight(h); 
-    std::cout << readHeight() << std::endl;
+    height(h); 
+    std::cout << height() << std::endl;
     if (!findAndLocate(fin, "Enter the center of the circle:"))
         clean_up(ERROR);
     fin >> cen[0] >> cen[1];
@@ -327,16 +327,16 @@ void cgalCircleSurf::getParaFromFile(std::ifstream& fin)
         double k; 
 
         fin >> k;
-	setCGALCoeffRestricSize(k); 
+	CGALCoeffRestricSize(k); 
     }
-    std::cout << readCGALCoeffRestricSize() << std::endl;
+    std::cout << CGALCoeffRestricSize() << std::endl;
     if (findAndLocate(fin, "Enter the bound for restricting minimum angle:")) {
 	double c; 
 
         fin >> c;
-	setCGALMinAngleUb(c); 
+	CGALMinAngleUb(c); 
     }
-    std::cout << readCGALMinAngleUb() << std::endl;
+    std::cout << CGALMinAngleUb() << std::endl;
     if (findAndLocate(fin, "Enter the number of constraint point on circle:"))
 	fin >> num_reg_const; 
     std::cout << num_reg_const << std::endl;
@@ -374,12 +374,12 @@ void cgalCircleSurf::addCgalConst()
     // add extra constraint
     // some extra constraint points which are very close
     // to certain regular constraint point were meant to be it
-    for (size_t i = 0; i < readExtConPoint().size(); i += 2)
+    for (size_t i = 0; i < extConPoint().size(); i += 2)
     {
 	 double pe[2];
 
-	 pe[0] = readExtConPoint()[i]; 
-	 pe[1] = readExtConPoint()[i+1];
+	 pe[0] = extConPoint()[i]; 
+	 pe[1] = extConPoint()[i+1];
          for (size_t j = 0; j < regConPoint.size(); j += 2)
          {
 	      double pr[2]; 
@@ -388,17 +388,17 @@ void cgalCircleSurf::addCgalConst()
 	      pr[1] = regConPoint[j+1]; 
 	      if (distance(pe, pr, 2) < eps)
 	      {		  
-		  setExtConPoint(regConPoint[j], i); 
-		  setExtConPoint(regConPoint[j+1], i+1);
+		  extConPoint(regConPoint[j], i); 
+		  extConPoint(regConPoint[j+1], i+1);
 	      }
          }
     }
-    for (size_t i = 0; i < readExtConPoint().size(); i += 4)
+    for (size_t i = 0; i < extConPoint().size(); i += 4)
     {
-	 v1 = insertPointToCDT(Cgal_Point(readExtConPoint()[i], 
-			readExtConPoint()[i+1]));
-         v2 = insertPointToCDT(Cgal_Point(readExtConPoint()[i+2], 
-			readExtConPoint()[i+3])); 
+	 v1 = insertPointToCDT(Cgal_Point(extConPoint()[i], 
+			extConPoint()[i+1]));
+         v2 = insertPointToCDT(Cgal_Point(extConPoint()[i+2], 
+			extConPoint()[i+3])); 
          insertConstraintToCDT(v1, v2);
     }
 }
@@ -412,29 +412,166 @@ void cgalCircleSurf::cgalTriMesh(std::ifstream& fin)
     getExtraConstPoint(fin);
     addCgalConst();
 
-    double cri_dx = readCGALCoeffRestricSize() * 
-		readIntface()->table->rect_grid.h[0];
+    double cri_dx = CGALCoeffRestricSize() * 
+		interface()->table->rect_grid.h[0];
     std::list<Cgal_Point> seeds; 
+
+    if (hole())
+        seeds.push_back(Cgal_Point(getCenter()[0], getCenter()[1])); 
     // refine the domain by a constrained delaunay triangulation 
     // c_bound used to bound minimun angle. 
     // sin(alpha_min) = sqrt(c_bound)
     // cri_dx used to bound triangle edge size
     CGAL::refine_Delaunay_mesh_2(readCDT(), seeds.begin(), seeds.end(),
-                Criteria(readCGALMinAngleUb(), cri_dx));
+                Criteria(CGALMinAngleUb(), cri_dx));
 
-    int num = readNumFinFace(); 
+    int num = numFinFace(); 
 
     for (fit = readCDT().finite_faces_begin(); 
 		fit != readCDT().finite_faces_end(); fit++)
          num++;
-    setNumFinFace(num); 
+    numFinFace(num); 
     cgalGenSurf();
-    wave_type(*readSurface()) = ELASTIC_BOUNDARY;
-    FT_InstallSurfEdge(*readSurface(), MONO_COMP_HSBDRY);
+    wave_type(*surface()) = ELASTIC_BOUNDARY;
+    FT_InstallSurfEdge(*surface(), MONO_COMP_HSBDRY);
     setSurfZeroMesh();
     setMonoCompBdryZeroLength();
-    if (consistent_interface(readIntface()) == NO)
+    if (consistent_interface(interface()) == NO)
         clean_up(ERROR);
+}
+
+void cgalParaSurf::cgalGenSurf()
+{
+    COMPONENT neg_comp, pos_comp;
+    SURFACE *newsurf;
+    INTERFACE* sav_intfc = current_interface();
+    CDT::Finite_vertices_iterator vit;
+    CDT::Finite_faces_iterator fit;
+    size_t i;
+
+    neg_comp = pos_comp = interface()->default_comp;
+
+    // set current interface to be intfc
+    // the element generated by make_surface, make_curve, ... 
+    // will hooked on current interface
+    set_current_interface(interface());
+    newsurf  = make_surface(neg_comp, pos_comp, NULL, NULL);
+
+    int num_vtx = readCDT().number_of_vertices();
+    double* vertex = new double [3*num_vtx];
+    std::vector<size_t> index;
+
+    for (i = 0, vit = readCDT().finite_vertices_begin();
+                vit != readCDT().finite_vertices_end(); vit++, i++)
+    {
+         vit->info() = i;
+         index.push_back(i);
+         vertex[i*3] = vit->point()[0];
+         vertex[i*3+1] = vit->point()[1];
+         vertex[i*3+2] = height();
+    }
+
+    std::vector<POINT*> points;
+    int num_tris = 0;
+
+    for (i = 0; i < (size_t)num_vtx; i++)
+    {
+         points.push_back(Point(vertex+3*i));
+         points.back()->num_tris = 0;
+    }
+    num_tris = numFinFace(); 
+
+    std::vector<bool> flag(num_tris, true); 
+
+    if (hole()) {
+        double tri_center[2]; 
+    
+        for (i = 0, fit = readCDT().finite_faces_begin(); 
+            fit != readCDT().finite_faces_end(); fit++, i++) {
+             tri_center[0] = (fit->vertex(0)->point()[0] + 
+                fit->vertex(1)->point()[0] + fit->vertex(2)->point()[0]) / 3.0; 
+             tri_center[1] = (fit->vertex(0)->point()[1] + 
+                fit->vertex(1)->point()[1] + fit->vertex(2)->point()[1]) / 3.0;
+             if (distance(tri_center, getCenter(), 2) < innerRad) {
+                 flag[i] = false; 
+                 num_tris--; 
+            }
+        }
+    }
+
+    int num_point_tris = num_tris * 3;
+    TRI** tris;
+    int j = 0; 
+
+    uni_array(&tris, num_tris, sizeof(TRI*));
+    for (i = 0, j = 0, fit = readCDT().finite_faces_begin();
+                fit != readCDT().finite_faces_end(); fit++, i++)
+    {
+         if (!flag[i]) continue; 
+         size_t i1 = index[fit->vertex(0)->info()];
+         size_t i2 = index[fit->vertex(1)->info()];
+         size_t i3 = index[fit->vertex(2)->info()];
+
+         tris[j] = make_tri(points[i1], points[i2], points[i3],
+                        NULL, NULL, NULL, NO);
+         tris[j++]->surf = newsurf;
+         points[i1]->num_tris++;
+         points[i2]->num_tris++;
+         points[i3]->num_tris++;
+    }
+    interface()->point_tri_store = 
+        (TRI**)store((size_t)num_point_tris*sizeof(TRI*));
+
+    TRI** ptris = interface()->point_tri_store;
+
+    for (i = 0; i < (size_t)num_vtx; i++)
+    {
+         points[i]->tris = ptris;
+         ptris += points[i]->num_tris;
+         points[i]->num_tris = 0;
+    }
+    for (i = 0; i < (size_t)num_tris; i++)
+    {
+         if (i != 0)
+         {
+             tris[i]->prev = tris[i-1];
+             tris[i-1]->next = tris[i];
+         }
+         for (int j = 0; j < 3; j++)
+         {
+              POINT* p = Point_of_tri(tris[i])[j];
+              p->tris[p->num_tris++] = tris[i];
+         }
+    }
+    for (i = 0; i < (size_t)num_vtx; i++)
+    {
+         TRI** tritemp = points[i]->tris;
+         int num_ptris = points[i]->num_tris;
+         for (int j = 0; j < num_ptris; j++)
+         for (int k = 0; k < j; k++)
+         {
+              TRI* tri1 = tritemp[j];
+              TRI* tri2 = tritemp[k];
+              for (int m = 0; m < 3; m++)
+              for (int l = 0; l < 3; l++)
+              {
+                   if (Point_of_tri(tri1)[m] == Point_of_tri(tri2)[(l+1)%3] &&
+                        Point_of_tri(tri1)[(m+1)%3] == Point_of_tri(tri2)[l])
+                   {
+                       Tri_on_side(tri1, m) = tri2;
+                       Tri_on_side(tri2, l) = tri1;
+                   }
+              }
+         }
+    }
+    newsurf->num_tri = num_tris;
+    first_tri(newsurf) = tris[0];
+    last_tri(newsurf) = tris[num_tris-1];
+    last_tri(newsurf)->next = tail_of_tri_list(newsurf);
+    first_tri(newsurf)->prev = head_of_tri_list(newsurf);
+    reset_intfc_num_points(newsurf->interface);
+    *surface() = newsurf;
+    set_current_interface(sav_intfc);
 }
 
 void cgalParaSurf::getParaFromFile(std::ifstream& fin) {
@@ -444,8 +581,8 @@ void cgalParaSurf::getParaFromFile(std::ifstream& fin) {
     double h; 
 
     fin >> h;
-    setHeight(h); 
-    std::cout << readHeight() << std::endl;
+    height(h); 
+    std::cout << height() << std::endl;
     if (!findAndLocate(fin, "Enter the center of the canopy:"))
         clean_up(ERROR);
     
@@ -456,32 +593,45 @@ void cgalParaSurf::getParaFromFile(std::ifstream& fin) {
     std::cout << getCenter()[0] << " " << getCenter()[1] << std::endl;
     if (!findAndLocate(fin, "Enter the radius of the canopy:"))
         clean_up(ERROR);
+
     double r; 
 
     fin >> r;
     setRadius(r); 
     std::cout << getRadius() << std::endl;
+    if (findAndLocate(fin, "Enter yes to cut a vent on canopy: ")) {
+        std::string temp; 
+
+        fin >> temp; 
+        if (temp[0] == 'y' || temp[0] == 'Y')
+            hole(true); 
+        if (findAndLocate(fin, "Enter the radius of the vent: ")) 
+            fin >> innerRad;  
+        else innerRad = 0.1*getRadius(); 
+    }
     if (findAndLocate(fin,
                 "Enter the coefficient for restricting triangular size:")) {
 	double k;
  
         fin >> k;
-	setCGALCoeffRestricSize(k); 
+	CGALCoeffRestricSize(k); 
     }
-    std::cout << readCGALCoeffRestricSize() << std::endl;
+    std::cout << CGALCoeffRestricSize() << std::endl;
     if (findAndLocate(fin, "Enter the bound for restricting minimum angle:")) {
 	double c; 
 
         fin >> c;
-	setCGALMinAngleUb(c); 
+	CGALMinAngleUb(c); 
     }
-    std::cout << readCGALMinAngleUb() << std::endl;
+    std::cout << CGALMinAngleUb() << std::endl;
     if (!findAndLocate(fin, "Enter the number of gores:")) {
 	std::cout << "use default!\n"; 
 	num_lines = 16; 
     }
-    else 
+    else {
         fin >> num_lines; 
+        if (num_lines & 1) num_lines++; 
+    }
     if (!findAndLocate(fin, "Enter the number of constraint points" 
         "between two lines:")) {
         std::cout << "use default!\n"; 
@@ -492,20 +642,20 @@ void cgalParaSurf::getParaFromFile(std::ifstream& fin) {
 }
 
 void cgalParaSurf::addCgalConst() {
-    setNumRegConst(num_lines * num_cons); 
+    numRegConst(num_lines * num_cons); 
 
-    double theta = 2 * PI / (getNumRegConst());
+    double theta = 2 * PI / (numRegConst());
     Vertex_handle v1, v2;
-    Vertex_handle *v = new Vertex_handle [getNumRegConst()]; 
+    Vertex_handle *v = new Vertex_handle [numRegConst()]; 
     std::vector<std::pair<double, double>> regConPoint;
   
-    for (int i = 0; i < getNumRegConst(); i++)
+    for (int i = 0; i < numRegConst(); i++)
          regConPoint.push_back(std::make_pair(getCenter()[0] + 
 		getRadius() * cos(i * theta), getCenter()[1] + 
 		getRadius() * sin(i * theta)));
     regConPoint.push_back(std::make_pair(getCenter()[0] + getRadius(), 
 		getCenter()[1]));
-    for (int i = 0; i < getNumRegConst(); i++)
+    for (int i = 0; i < numRegConst(); i++)
     {
          v1 = insertPointToCDT(Cgal_Point(regConPoint[i].first, 
 		regConPoint[i].second));
@@ -514,19 +664,52 @@ void cgalParaSurf::addCgalConst() {
          insertConstraintToCDT(v1, v2);
 	 v[i] = v1; 
     }
-    v1 = insertPointToCDT(Cgal_Point(getCenter()[0], getCenter()[1]));
-    for (int i = 0; i < num_lines; i++) {
-         insertConstraintToCDT(v1, v[i*10]);
-    }
-    delete [] v; 
+
     std::ofstream fout("points.txt"); 
 
+    fout << "outter points\n"; 
     for (int i = 0; i < num_lines; i++) {
 	 fout << regConPoint[i*num_cons].first << ' ' << 
             regConPoint[i*num_cons].second 
-		<< ' ' << readHeight() << std::endl; 
+		<< ' ' << height() << std::endl; 
     }
+    if (!hole()) {
+        v1 = insertPointToCDT(Cgal_Point(getCenter()[0], getCenter()[1]));
+        for (int i = 0; i < num_lines; i++) {
+             insertConstraintToCDT(v1, v[i*num_cons]);
+        }
+    }
+    else {
+        Vertex_handle* vi = new Vertex_handle [numRegConst()/2]; 
+        std::vector<std::pair<double, double>> regInnerConPoint; 
+
+        theta *= 2; 
+        for (int i = 0; i < numRegConst()/2; i++) 
+             regInnerConPoint.push_back({getCenter()[0]+innerRad*cos(i*theta), 
+                getCenter()[1]+innerRad*sin(i*theta)}); 
+        regInnerConPoint.push_back({getCenter()[0]+innerRad, getCenter()[1]}); 
+        for (int i = 0; i < numRegConst()/2; i++) {
+             v1 = insertPointToCDT(Cgal_Point(regInnerConPoint[i].first, 
+                regInnerConPoint[i].second)); 
+             v2 = insertPointToCDT(Cgal_Point(regInnerConPoint[i+1].first, 
+                regInnerConPoint[i+1].second)); 
+             insertConstraintToCDT(v1, v2); 
+             vi[i] = v1; 
+        }
+        for (int i = 0; i < num_lines; i++) 
+             insertConstraintToCDT(v[i*num_cons], vi[i*num_cons/2]); 
+        delete [] vi; 
+        fout << "inner points\n";
+        for (int i = 0; i < num_lines; i++) {
+             fout << regInnerConPoint[i*num_cons].first << ' ' <<
+                    regInnerConPoint[i*num_cons].second
+                        << ' ' << height() << std::endl;
+    }
+
+    }
+    delete [] v; 
     for (int i = 0; i < num_lines + 1; i++) {
          fout << 0 << ' ' << i + 1 << std::endl;
     }
 }
+

@@ -4,6 +4,15 @@
 #include <unordered_map>
 
 typedef std::vector<std::vector<double>> std_matrix;
+namespace origamiSurface {
+    typedef std::unordered_map<std::string, int> MapStrInt; 
+    typedef enum {
+        POLYGON,
+        FACEONEARC,
+        FACETWOARC
+    } faceType;
+} 
+
 class Crease; 
 
 class Vertex {
@@ -46,7 +55,25 @@ public :
 
 class OgmPoint; 
 
+class faceTypeSingleton {
+    origamiSurface::MapStrInt mymap; 
+    faceTypeSingleton(); 
+    void operator=(faceTypeSingleton&); 
+    faceTypeSingleton(const faceTypeSingleton&); 
+public : 
+    static faceTypeSingleton& instance() {
+        static faceTypeSingleton fts; 
+        return fts; 
+    }
+    origamiSurface::MapStrInt& getMap() { return mymap; } 
+};
+
 class Face {
+    typedef enum {
+        POLYGON, 
+        FACEONEARC, 
+        FACETWOARC
+    } faceType; 
     // vertices constructing the face
     std::vector<Vertex*> vertices_;
     // crease lines vertices on the face will go through
@@ -55,9 +82,9 @@ class Face {
     // folding matrix corresponds to crease lines l1, l2, ..., lk in 
     // crsAlongPath
     std_matrix fd_matrix; 
-    bool type; 
+    origamiSurface::faceType type; 
 protected: 
-    void setType(int i) { type = i; }
+    void setType(origamiSurface::faceType ft) { type = ft; }
     std::vector<Vertex*> getVertices() { return vertices_; }
 public :
     Face(const std::vector<Vertex*>&, const std::vector<Crease*>&); 
@@ -66,13 +93,13 @@ public :
     void crsFoldCrds(std::vector<double>&); 
     std_matrix& getFoldingMatrix() { return fd_matrix; }
     void updateFoldingMatrix(); 
-    virtual ~Face() {}
+    virtual ~Face() = 0; 
 };
 
 class Polygon : public Face {
 public : 
     Polygon(const std::vector<Vertex*>& vv, const std::vector<Crease*>& cv) : 
-        Face(vv, cv) { setType(0); }
+        Face(vv, cv) { setType(origamiSurface::POLYGON); }
     virtual bool poInside(OgmPoint*); 
 }; 
 
@@ -83,7 +110,17 @@ public :
     FaceOneArc(const std::vector<Vertex*>& vv, const std::vector<Crease*>& cv, 
         const std::vector<double>& cen) : Face(vv, cv) { 
             center.resize(3); std::copy(cen.begin(), cen.end(), 
-            center.begin()); setType(1); }
+            center.begin()); setType(origamiSurface::FACEONEARC); }
+    virtual bool poInside(OgmPoint*); 
+};
+
+class FaceTwoArc : public Face {
+    std::vector<double> center; 
+public : 
+    FaceTwoArc(std::vector<Vertex*>& vv, const std::vector<Crease*>& cv, 
+        const std::vector<double>& cen) : Face(vv, cv) {
+        center.resize(3); std::copy(cen.begin(), cen.end(), center.begin()); 
+        setType(origamiSurface::FACETWOARC); }
     virtual bool poInside(OgmPoint*); 
 };
 
@@ -96,6 +133,19 @@ public:
     std::vector<Face*> getOgmFaces() { return ogmFaces; }
     void addOgmFace(Face* f) { ogmFaces.push_back(f); }
     std::vector<double> getInitialCoords() { return x0; }
+};
+
+class optAlgoSingleton {
+    origamiSurface::MapStrInt mymap; 
+    optAlgoSingleton(); 
+    void operator=(optAlgoSingleton&); 
+    optAlgoSingleton(const optAlgoSingleton&); 
+public : 
+    static optAlgoSingleton& instance() {
+        static optAlgoSingleton oas; 
+        return oas; 
+    }
+    origamiSurface::MapStrInt& getMap() { return mymap; }
 };
 
 class OrigamiFold : public Drag
@@ -116,7 +166,6 @@ public:
     OrigamiFold();
     ~OrigamiFold();
     size_t dataSize();
-    static const std::unordered_map<std::string, int> optAlgoMap; 
 private:
     bool first = true;
     std::vector<Vertex*> vertices_;

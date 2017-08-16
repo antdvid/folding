@@ -24,14 +24,14 @@ void Folder::addDragsFromFile(std::string fname) {
 
     Drag::Info info;
     std::set<std::string> foldset;
-    std::set<std::string> nloptAlgoSet; 
+    optAlgoSingleton& oas = optAlgoSingleton::instance(); 
+    std::unordered_map<std::string, int> optMap = oas.getMap(); 
+    faceTypeSingleton& fts = faceTypeSingleton::instance(); 
+    std::unordered_map<std::string, int> faceMap = fts.getMap(); 
 
     for (std::vector<Drag*>::iterator it = Drag::prototypes.begin();
                 it != Drag::prototypes.end(); it++)
          foldset.insert((*it) -> id());
-    for (auto it : OrigamiFold::optAlgoMap) {
-         nloptAlgoSet.insert(it.first); 
-    }
     std::string s;
     info.clear();
     while (ifs >> s)
@@ -49,8 +49,10 @@ void Folder::addDragsFromFile(std::string fname) {
 	     info.id() = s;
 	}
         // algorithm type for nlopt method for origami 
-        else if (nloptAlgoSet.find(s) != nloptAlgoSet.end()) 
-            info.data().push_back(OrigamiFold::optAlgoMap.find(s)->second); 
+        else if (optMap.find(s) != optMap.end()) 
+            info.data().push_back(optMap[s]); 
+        else if (faceMap.find(s) != faceMap.end()) 
+            info.data().push_back(faceMap[s]); 
 	else
 	{
 	     //check if it is a double
