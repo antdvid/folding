@@ -1,5 +1,6 @@
 #include "cgal.h"
 #include <utility>
+#include <memory>
 
 cgalSurf::cgalSurf(INTERFACE* intfc, SURFACE** surf) :  
 		c_intfc(intfc), c_surf(surf) 
@@ -104,7 +105,7 @@ void cgalSurf::cgalGenSurf()
     newsurf  = make_surface(neg_comp, pos_comp, NULL, NULL);
 
     int num_vtx = readCDT().number_of_vertices();
-    double* vertex = new double [3*num_vtx];
+    std::unique_ptr<double[]> vertex(new double [3*num_vtx]); 
     std::vector<size_t> index;
 
     for (i = 0, vit = readCDT().finite_vertices_begin();
@@ -112,9 +113,9 @@ void cgalSurf::cgalGenSurf()
     {
          vit->info() = i;
          index.push_back(i);
-         vertex[i*3] = vit->point()[0];
-         vertex[i*3+1] = vit->point()[1];
-         vertex[i*3+2] = height_;
+         vertex.get()[i*3] = vit->point()[0];
+         vertex.get()[i*3+1] = vit->point()[1];
+         vertex.get()[i*3+2] = height_;
     }
 
     std::vector<POINT*> points;
@@ -122,7 +123,7 @@ void cgalSurf::cgalGenSurf()
 
     for (i = 0; i < (size_t)num_vtx; i++)
     {
-         points.push_back(Point(vertex+3*i));
+         points.push_back(Point(vertex.get()+3*i));
          points.back()->num_tris = 0;
     }
     num_tris = num_finite_face; 
@@ -416,8 +417,10 @@ void cgalCircleSurf::cgalTriMesh(std::ifstream& fin)
 		interface()->table->rect_grid.h[0];
     std::list<Cgal_Point> seeds; 
 
+    /*
     if (hole())
         seeds.push_back(Cgal_Point(getCenter()[0], getCenter()[1])); 
+    */
     // refine the domain by a constrained delaunay triangulation 
     // c_bound used to bound minimun angle. 
     // sin(alpha_min) = sqrt(c_bound)
@@ -458,7 +461,8 @@ void cgalParaSurf::cgalGenSurf()
     newsurf  = make_surface(neg_comp, pos_comp, NULL, NULL);
 
     int num_vtx = readCDT().number_of_vertices();
-    double* vertex = new double [3*num_vtx];
+    std::unique_ptr<double[]> vertex (new double [3*num_vtx]); 
+    //double* vertex = new double [3*num_vtx];
     std::vector<size_t> index;
 
     for (i = 0, vit = readCDT().finite_vertices_begin();
@@ -476,7 +480,7 @@ void cgalParaSurf::cgalGenSurf()
 
     for (i = 0; i < (size_t)num_vtx; i++)
     {
-         points.push_back(Point(vertex+3*i));
+         points.push_back(Point(vertex.get()+3*i));
          points.back()->num_tris = 0;
     }
     num_tris = numFinFace(); 
@@ -503,6 +507,7 @@ void cgalParaSurf::cgalGenSurf()
     TRI** tris;
     int j = 0; 
 
+    numFinFace(num_tris);
     uni_array(&tris, num_tris, sizeof(TRI*));
     for (i = 0, j = 0, fit = readCDT().finite_faces_begin();
                 fit != readCDT().finite_faces_end(); fit++, i++)
@@ -632,7 +637,7 @@ void cgalParaSurf::getParaFromFile(std::ifstream& fin) {
         fin >> num_lines; 
         if (num_lines & 1) num_lines++; 
     }
-    if (!findAndLocate(fin, "Enter the number of constraint points" 
+    if (!findAndLocate(fin, "Enter the number of constraint points " 
         "between two lines:")) {
         std::cout << "use default!\n"; 
         num_cons = 10; 
@@ -646,7 +651,8 @@ void cgalParaSurf::addCgalConst() {
 
     double theta = 2 * PI / (numRegConst());
     Vertex_handle v1, v2;
-    Vertex_handle *v = new Vertex_handle [numRegConst()]; 
+    std::unique_ptr<Vertex_handle[]> v(new Vertex_handle [numRegConst()]); 
+    //Vertex_handle *v = new Vertex_handle [numRegConst()]; 
     std::vector<std::pair<double, double>> regConPoint;
   
     for (int i = 0; i < numRegConst(); i++)
@@ -662,54 +668,22 @@ void cgalParaSurf::addCgalConst() {
          v2 = insertPointToCDT(Cgal_Point(regConPoint[i+1].first, 
 		regConPoint[i+1].second));
          insertConstraintToCDT(v1, v2);
-	 v[i] = v1; 
+	 v.get()[i] = v1; 
     }
 
-    std::ofstream fout("points.txt"); 
-
-    fout << "outter points\n"; 
-    for (int i = 0; i < num_lines; i++) {
-	 fout << regConPoint[i*num_cons].first << ' ' << 
-            regConPoint[i*num_cons].second 
-		<< ' ' << height() << std::endl; 
-    }
-    if (!hole()) {
+    if (!hole() && num_lines <= 16) {
         v1 = insertPointToCDT(Cgal_Point(getCenter()[0], getCenter()[1]));
         for (int i = 0; i < num_lines; i++) {
-             insertConstraintToCDT(v1, v[i*num_cons]);
+             insertConstraintToCDT(v1, v.get()[i*num_cons]);
         }
     }
     else {
-        Vertex_handle* vi = new Vertex_handle [numRegConst()/2]; 
-        std::vector<std::pair<double, double>> regInnerConPoint; 
-
-        theta *= 2; 
-        for (int i = 0; i < numRegConst()/2; i++) 
-             regInnerConPoint.push_back({getCenter()[0]+innerRad*cos(i*theta), 
-                getCenter()[1]+innerRad*sin(i*theta)}); 
-        regInnerConPoint.push_back({getCenter()[0]+innerRad, getCenter()[1]}); 
-        for (int i = 0; i < numRegConst()/2; i++) {
-             v1 = insertPointToCDT(Cgal_Point(regInnerConPoint[i].first, 
-                regInnerConPoint[i].second)); 
-             v2 = insertPointToCDT(Cgal_Point(regInnerConPoint[i+1].first, 
-                regInnerConPoint[i+1].second)); 
-             insertConstraintToCDT(v1, v2); 
-             vi[i] = v1; 
-        }
-        for (int i = 0; i < num_lines; i++) 
-             insertConstraintToCDT(v[i*num_cons], vi[i*num_cons/2]); 
-        delete [] vi; 
-        fout << "inner points\n";
         for (int i = 0; i < num_lines; i++) {
-             fout << regInnerConPoint[i*num_cons].first << ' ' <<
-                    regInnerConPoint[i*num_cons].second
-                        << ' ' << height() << std::endl;
-    }
-
-    }
-    delete [] v; 
-    for (int i = 0; i < num_lines + 1; i++) {
-         fout << 0 << ' ' << i + 1 << std::endl;
+             v1 = insertPointToCDT(Cgal_Point(getCenter()[0]+
+                innerRad*cos(i*num_cons*theta), getCenter()[1]+
+                innerRad*sin(i*num_cons*theta)));
+             insertConstraintToCDT(v.get()[i*num_cons], v1);
+        }
     }
 }
 
