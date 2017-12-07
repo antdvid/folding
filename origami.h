@@ -2,8 +2,8 @@
 #include "drag.h"
 #include "nlopt.hpp"
 #include <unordered_map>
+#include <armadillo>
 
-typedef std::vector<std::vector<double>> std_matrix;
 namespace origamiSurface {
     typedef std::unordered_map<std::string, int> MapStrInt; 
     typedef enum {
@@ -17,10 +17,10 @@ class Crease;
 
 class Vertex {
     int index; 
-    std::vector<double> coords;
+    arma::vec coords;
     bool nv; 
 public : 
-    std::vector<double> getCoords() { return coords; }
+    arma::vec getCoords() { return coords; }
     int getIdx() { return index; }
     bool judgeNonVirtual() { return nv; }
     Vertex(const std::vector<double>& cds, int idx, bool nonVir = false) : 
@@ -40,16 +40,17 @@ class Crease {
     Vertex* v1_; 
     Vertex* v2_; 
     // normalized vector v1v2
-    std::vector<double> dir; 
+    arma::vec dir; 
     int index1; 
     int index2; 
     double rho_T;
-    std_matrix rot_matrix; 
+    arma::mat rot_matrix; 
+    void calRotMatrix(double);
 public : 
     Crease(Vertex* v1, Vertex* v2, int idx1, int idx2, double); 
     void updateRotMatrix(double); 
-    std_matrix getRotMatrix() { return rot_matrix; }
-    std::vector<double> getDir() { return dir; }
+    arma::mat getRotMatrix() { return rot_matrix; }
+    arma::vec getDir() { return dir; }
     double getRotAngle() { return rho_T; }
 };
 
@@ -81,17 +82,19 @@ class Face {
     std::vector<Crease*> crsAlongPath;
     // folding matrix corresponds to crease lines l1, l2, ..., lk in 
     // crsAlongPath
-    std_matrix fd_matrix; 
+    arma::mat fd_matrix; 
     origamiSurface::faceType type; 
 protected: 
     void setType(origamiSurface::faceType ft) { type = ft; }
     std::vector<Vertex*> getVertices() { return vertices_; }
+    bool leftOnStraightLine(arma::vec, arma::vec, arma::vec);
+    bool leftOnArc(arma::vec, arma::vec, arma::vec, arma::vec);
 public :
     Face(const std::vector<Vertex*>&, const std::vector<Crease*>&); 
     virtual bool poInside(OgmPoint*) = 0;
     std::vector<Crease*> getCrsAlongPath() { return crsAlongPath; }
     void crsFoldCrds(std::vector<double>&); 
-    std_matrix& getFoldingMatrix() { return fd_matrix; }
+    arma::mat& getFoldingMatrix() { return fd_matrix; }
     void updateFoldingMatrix(); 
     virtual ~Face() = 0; 
 };
@@ -105,7 +108,7 @@ public :
 
 // the face with only 1 arc and others are straight lines
 class FaceOneArc : public Face {
-    std::vector<double> center; 
+    arma::vec center; 
 public : 
     FaceOneArc(const std::vector<Vertex*>& vv, const std::vector<Crease*>& cv, 
         const std::vector<double>& cen) : Face(vv, cv) { 
@@ -115,7 +118,7 @@ public :
 };
 
 class FaceTwoArc : public Face {
-    std::vector<double> center; 
+    arma::vec center; 
 public : 
     FaceTwoArc(std::vector<Vertex*>& vv, const std::vector<Crease*>& cv, 
         const std::vector<double>& cen) : Face(vv, cv) {
@@ -150,6 +153,30 @@ public :
 
 class OrigamiFold : public Drag
 {
+    const double stepSize;
+    const double wplus;
+    const double wminus;
+    double weight = 0.8;
+    struct Trans_rand {
+        double operator()(int rd) {
+            return (rd / (double)RAND_MAX * 2 - 1) * M_PI;
+        }
+    };
+    struct Trans_dir {
+        double w_;
+        Trans_dir(double w) : w_(w) {}
+        double operator()(double r1, double r2) {
+            return (1 - w_) * r1 + w_ * r2;
+        }
+    };
+    struct Trans_tau {
+        double D;
+        Trans_tau(double d) : D(d) {}
+        double operator()(double r, double d) {
+            double rho = r + D * d;
+            return std::min(M_PI, std::max(rho, -M_PI));
+        }
+    };
 public:
     void preprocess(std::vector<SpringVertex*>&);
     void postprocess(std::vector<SpringVertex*>&);
@@ -184,63 +211,3 @@ private:
     size_t totalDataSize;
     int optAlgoType_; 
 };
-
-class Math
-{
-public:
-
-    static void MatxMat(const std_matrix &,
-                   const std_matrix &,
-                   std_matrix &);
-
-    static void MatxVec(const std_matrix &,
-                   const std::vector<double>&,
-                   std::vector<double>&);
-
-    static void MatpMat(const std_matrix &,
-                   const std_matrix &,
-                   std_matrix &);
-
-    static void MatmMat(const std_matrix &,
-                   const std_matrix &,
-                   std_matrix &);
-
-    static void VecmVec(const std::vector<double>&,
-                      const std::vector<double>&,
-                      std::vector<double>&);
-
-    static void VecpVec(const std::vector<double>&,
-                      const std::vector<double>&,
-                      std::vector<double>&);
-    static void assignMatToMat(const std_matrix&, std_matrix&);
-    static double Mag(const std::vector<double>&);
-    static std_matrix Eye(int);
-    static std_matrix Mat(int, int);
-    static double Norm(const std_matrix &, int);
-    static double Norm(const std::vector<double>&, int);
-    static double dist3d(const std::vector<double>& p1,
-                         const std::vector<double>& p2);
-    static void Normalize(std::vector<double>& v);
-    static double TriProd(const std::vector<double>& a,
-                     const std::vector<double>& b,
-                     const std::vector<double>& c);
-    static double Mdot3d(const std::vector<double>& a,
-                   const std::vector<double>& b);
-    static void Mcross3d(const std::vector<double>& u,
-                     const std::vector<double>& v,
-                     std::vector<double>& ans);
-    static bool leftOnStraightLine(const std::vector<double>&,
-                const std::vector<double>&, const std::vector<double>&);
-    static bool leftOnArc(const std::vector<double>&,
-                const std::vector<double>&, 
-                const std::vector<double>&, const std::vector<double>&); 
-    static void getRotMatrix(const std::vector<double>&, 
-        const std::vector<double>&, std_matrix& , double); 
-    static void transpose(std_matrix&);
-    static void transpose(const std_matrix&, std_matrix&);
-private:
-    Math();
-};
-
-
-

@@ -3,8 +3,9 @@
 #include <iterator>
 #include <fstream>
 #include <typeinfo>
+#include <algorithm>
+
 static std::ostream& operator << (std::ostream& os, const std::vector<double>&);
-static std::ostream& operator << (std::ostream& os, const std_matrix&);
 
 //class OgmPoint
 OgmPoint::OgmPoint(SpringVertex& sv) : SpringVertex(sv)
@@ -117,17 +118,15 @@ double OrigamiFold::targetFunction(
          Nvvertex* nv = static_cast<Nvvertex*>(it); 
 
          std::vector<Crease*> crsOnVertex = nv->getCreaseOnVertex();    
-         std_matrix I = Math::Eye(4); 
-         std_matrix M = Math::Eye(4); 
-         std_matrix tempAns = Math::Mat(4,4); 
+         arma::mat I(4, 4, arma::fill::eye);
+         arma::mat M(4, 4, arma::fill::eye);
 
          for (auto it1 : crsOnVertex) {
 
-              Math::MatxMat(M, it1->getRotMatrix(), tempAns);
-              Math::assignMatToMat(tempAns, M);        
+              M *= it1->getRotMatrix();
          } 
-         Math::MatmMat(M, I, M); 
-         ans += Math::Norm(M, 1); 
+         M -= I;
+         ans += arma::norm(M, "fro"); 
     }
     return ans;
 }
@@ -137,32 +136,41 @@ void OrigamiFold::findNextFoldingAngle()
     const int maxIter = 2000;
     static int iter = 0;
     bool success = false;
-    static double w = 0.8; 
-    double w0, w1, w2, D;
-    w1 = 0.2; w2 = 0.01; D = 0.015;
+
     while (!success && iter++ < maxIter)
     {
         int N = rho.size();
-        std::vector<double> rho_rand(N, 0);
+        std::vector<double> rho_rand(N, 0); 
         std::vector<double> dir(N, 0);
-        for (int i = 0; i < N; ++i)
-        {
-            rho_rand[i] = (rand()/(double)RAND_MAX * 2 - 1) * M_PI;
-            dir[i] = (1 - w) * rho_rand[i] + w * rho_T[i];
-            rho_tau[i] = rho_delta[i] + D * dir[i];
-            rho_tau[i] = std::min(M_PI,
-                         std::max(rho_tau[i], -M_PI));
-        }
+
+        std::generate_n(rho_rand.begin(), N, rand);
+        std::transform(rho_rand.begin(), rho_rand.end(), 
+                       rho_rand.begin(), Trans_rand());
+        std::transform(rho_rand.begin(), rho_rand.end(), 
+                       rho_T.begin(), dir.begin(), Trans_dir(weight));
+        std::transform(rho_delta.begin(), rho_delta.end(), 
+                       dir.begin(), rho_tau.begin(), Trans_tau(stepSize));
 
         double err = 0;
+        
+        arma::vec vrt(rho_T);
+        arma::vec vrd(rho_delta);
+
         rho = findFoldable(rho_tau, err);
-        if (isValid(rho) && Math::dist3d(rho_T, rho) < Math::dist3d(rho_T, rho_delta))
+
+        arma::vec vr(rho);
+        arma::vec v1(vrt-vr);
+        arma::vec v2(vrt-vrd);
+        double d1 = arma::norm(v1);
+        double d2 = arma::norm(v2);
+
+        if (isValid(rho) && d1 < d2)
         {
             rho_delta = rho;
-            w = w + w1;
+            weight = weight + wplus;
             success = true;
             std::cout << "rho = " << rho << std::endl;
-            if (Math::dist3d(rho_delta, rho_T) < 1.0e-3) {
+            if (d2 < 1.0e-3) {
                 std::cout << "convergence reached: err = 1e-3" 
                 << "folding angle = [" << rho_delta << "]" << std::endl; 
                 std::cout << "Folding process is terminated" << std::endl; 
@@ -171,10 +179,10 @@ void OrigamiFold::findNextFoldingAngle()
         }
         else
         {
-            w = w - w2;
+            weight = weight - wminus;
             success = false;
         }
-        w = std::max(std::min(w, 1.0), 0.0);
+        weight = std::max(std::min(weight, 1.0), 0.0);
     }
     if (iter >= maxIter)
     {
@@ -291,7 +299,7 @@ Drag* OrigamiFold::clone(const Info & info)
         angles, optAlgoType);
 }
 
-OrigamiFold::OrigamiFold(): m_opt(NULL) {}
+OrigamiFold::OrigamiFold(): m_opt(NULL), stepSize(0), wplus(0), wminus(0) {}
 
 OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
                          const std::vector<double>& cen, 
@@ -299,7 +307,8 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
 			 const std::vector<std::vector<int>>& fs, 
                          const std::vector<std::pair<int, int>>& creases,
                          const std::vector<std::vector<int>>& mappings, 
-                         const std::vector<double>& angles, int optAlgoType)
+                         const std::vector<double>& angles, int optAlgoType) :
+                        stepSize(0.015), wplus(0.2), wminus(0.01)
 {
     m_t = 3.0;
     m_opt = NULL;
@@ -410,57 +419,125 @@ Crease::Crease(Vertex* v1, Vertex* v2, int idx1, int idx2, double rho) {
     index1 = idx1; 
     index2 = idx2; 
     rho_T = rho; 
-    rot_matrix = Math::Mat(4, 4); 
-    dir.resize(3); 
-    Math::VecmVec(v2_->getCoords(), v1_->getCoords(), dir); 
-    Math::Normalize(dir); 
+    rot_matrix = arma::mat(4, 4, arma::fill::zeros);
+    dir = arma::normalise(v2_->getCoords()-v1_->getCoords()); 
+}
+
+void Crease::calRotMatrix(double rho) {
+    double a = dir(0), b = dir(1), c = dir(2);
+    arma::vec v = v2_->getCoords(); 
+    double x = v(0), y = v(1), z = v(2);
+    arma::mat T(4, 4, arma::fill::eye);
+    
+    T(0, 3) = -x, T(1, 3) = -y, T(2, 3) = -z;
+
+    arma::mat Ti(4, 4, arma::fill::eye);
+
+    Ti(0, 3) = x, Ti(1, 3) = y, Ti(2, 3) = z;
+
+    arma::mat Rz(4, 4, arma::fill::zeros);
+    
+    Rz(0, 0) = cos(rho), Rz(0, 1) = -sin(rho);
+    Rz(1, 0) = sin(rho), Rz(1, 1) = cos(rho);
+    Rz(2, 2) = Rz(3, 3) = 1.0;
+
+    arma::mat Ry(4, 4, arma::fill::zeros);
+    double d = sqrt(b*b+c*c);
+
+    Ry(0, 0) = d, Ry(0, 2) = -a;
+    Ry(1, 1) = 1.0;
+    Ry(2, 0) = a, Ry(2, 2) = d;
+    Ry(3, 3) = 1.0;
+
+    arma::mat Ryi(arma::trans(Ry));
+    arma::mat Rx(4, 4, arma::fill::eye);
+    arma::mat Rxi(4, 4, arma::fill::eye);
+
+    if (fabs(d) > 1.0e-12) {
+        Rx(1, 1) = c/d, Rx(1, 2) = -b/d;
+        Rx(2, 1) = b/d, Rx(2, 2) = c/d;
+        Rxi = arma::trans(Rx);
+    }
+
+    rot_matrix = Rx * T;
+    rot_matrix = Ry * rot_matrix; 
+    rot_matrix = Rz * rot_matrix; 
+    rot_matrix = Ryi * rot_matrix; 
+    rot_matrix = Rxi * rot_matrix;
+    rot_matrix = Ti * rot_matrix; 
 }
 
 void Crease::updateRotMatrix(double rho) {
-    Math::getRotMatrix(v1_->getCoords(), getDir(), rot_matrix, rho); 
+    calRotMatrix(rho); 
 }
 
 // class Face
 Face::Face(const std::vector<Vertex*>& vv, const std::vector<Crease*>& vc) {
     vertices_ = vv; 
     crsAlongPath = vc; 
-    fd_matrix = Math::Mat(4, 4);
+    fd_matrix = arma::mat(4, 4, arma::fill::zeros);
 }
 
 void Face::crsFoldCrds(std::vector<double>& new_crds) {
     std::vector<double> coords(new_crds); 
-    std::vector<double> ans(4, 0); 
-
+    
     coords.push_back(1.0);
-    Math::MatxVec(fd_matrix, coords, ans);
+
+    arma::vec vcoords(coords);
+    arma::vec ans(fd_matrix * vcoords); 
+
     for (int i = 0 ;i < 3; i++) 
-         new_crds[i] = ans[i]; 
+         new_crds[i] = ans(i); 
 }
 
 
 void Face::updateFoldingMatrix() {
-    std_matrix M = Math::Eye(4); 
-    std_matrix tempAns = Math::Mat(4, 4); 
+    arma::mat M(4, 4, arma::fill::eye);
 
-    for (auto it : crsAlongPath) {
-         Math::MatxMat(M, it->getRotMatrix(), tempAns); 
-         Math::assignMatToMat(tempAns, M); 
-    }
-    Math::assignMatToMat(M, fd_matrix); 
+    for (auto it : crsAlongPath) 
+         M *= it->getRotMatrix(); 
+    fd_matrix = M;
 }
 
 Face::~Face() {}
 
+bool Face::leftOnStraightLine(arma::vec vp1, arma::vec vp2, arma::vec vq) {
+    arma::vec va(vp2 - vp1);
+    arma::vec vb(vq - vp1);
+    arma::vec ans = arma::cross(va, vb);
+
+    if (fabs(ans(2)) < 1.0e-12 || ans(2) > 0)
+        return true;
+    else return false;
+}
+
+bool Face::leftOnArc(arma::vec vp1, arma::vec vp2, 
+        arma::vec vcen, arma::vec vq) {
+    double radius = arma::norm(vp1 - vcen);
+    double dist = arma::norm(vq - vcen);
+
+    if (dist < radius || fabs(dist-radius) < 1.0e-8)
+        return true;
+    return false; 
+}
+
 bool Polygon::poInside(OgmPoint* op) {
     std::vector<Vertex*> vertices = getVertices();
     int size = vertices.size();
+    arma::vec vOpIniCoords(op->getInitialCoords());
 
-    for (size_t i = 0; i < size-1; i++)
-         if (Math::leftOnStraightLine(vertices[i]->getCoords(),
-            vertices[i+1]->getCoords(), op->getInitialCoords())) continue;
+    for (size_t i = 0; i < size-1; i++) {
+         arma::vec v1(vertices[i]->getCoords());
+         arma::vec v2(vertices[i+1]->getCoords());
+
+         if (leftOnStraightLine(v1, v2, vOpIniCoords)) continue;
          else return false;
-    if (!Math::leftOnStraightLine(vertices[size-1]->getCoords(),
-            vertices[0]->getCoords(), op->getInitialCoords()))
+    }
+
+    arma::vec v1(vertices[size-1]->getCoords());
+    arma::vec v2(vertices[0]->getCoords());
+
+    if (!leftOnStraightLine(v1, v2, vOpIniCoords))
         return false;
     return true;
 }
@@ -468,370 +545,45 @@ bool Polygon::poInside(OgmPoint* op) {
 bool FaceOneArc::poInside(OgmPoint* op) {
     std::vector<Vertex*> vertices = getVertices(); 
     int size = vertices.size();
+    arma::vec vOpIniCoords(op->getInitialCoords());
 
-    for (size_t i = 0; i < size-1; i++)
-         if (Math::leftOnStraightLine(vertices[i]->getCoords(),
-            vertices[i+1]->getCoords(), op->getInitialCoords())) continue;
+    for (size_t i = 0; i < size-1; i++) {
+         arma::vec v1(vertices[i]->getCoords());
+         arma::vec v2(vertices[i+1]->getCoords());
+         if (leftOnStraightLine(v1, v2, vOpIniCoords)) continue;
          else return false;
-    if (!Math::leftOnArc(vertices[size-1]->getCoords(),
-            vertices[0]->getCoords(), center, op->getInitialCoords()))
+    }
+
+    arma::vec v1(vertices[size-1]->getCoords());
+    arma::vec v2(vertices[0]->getCoords());
+
+    if (!leftOnArc(v1, v2, center, vOpIniCoords))
         return false;
     return true;
 }
 
 bool FaceTwoArc::poInside(OgmPoint* op) {
     std::vector<Vertex*> vertices = getVertices(); 
-    
+    arma::vec vOpIniCoords(op->getInitialCoords());
+
     if (vertices.size() != 4) 
         throw std::runtime_error("FACETWOARC must have for edges!");
     for (size_t i = 0; i < 4; i++) {
+         arma::vec v1(vertices[i]->getCoords());
+         arma::vec v2(vertices[i+1]->getCoords());
+
          if (i & 1) 
-             if (Math::leftOnArc(vertices[i]->getCoords(), 
-                vertices[i+1]->getCoords(), center, 
-                op->getInitialCoords())) continue; 
+             if (leftOnArc(v1, v2, center, vOpIniCoords)) continue; 
              else return false;
          else 
-             if (Math::leftOnStraightLine(vertices[i]->getCoords(), 
-        vertices[i+1]->getCoords(), op->getInitialCoords())) continue; 
+             if (leftOnStraightLine(v1, v2, vOpIniCoords)) continue; 
             else return false; 
     }
     return true; 
-}
-// class Math
-void Math::MatxMat(const std::vector<std::vector<double>> & M1,
-                   const std::vector<std::vector<double>> & M2,
-                   std::vector<std::vector<double>> & ans)
-{
-    // mxn x nxp
-    int m = M1.size(); 
-    int n = M1[0].size(); 
-    int p = M2[0].size(); 
-
-    for (int i = 0; i < m; ++i)
-    for (int j = 0; j < p; ++j)
-    {
-        ans[i][j] = 0.0;
-        for (int k = 0; k < n; ++k)
-            ans[i][j] += M1[i][k] * M2[k][j];
-    }
-}
-
-void Math::MatxVec(const std::vector<std::vector<double>>& M,
-                   const std::vector<double>& v,
-                   std::vector<double>& ans)
-{
-    int m = M.size(); 
-    int n = v.size(); 
-
-    for (int i = 0; i < m; ++i)
-    {
-        ans[i] = 0;
-        for (int j = 0; j < n; ++j)
-            ans[i] += M[i][j] * v[j];
-    }
-}
-
-void Math::MatpMat(const std::vector<std::vector<double>>& M1,
-                 const std::vector<std::vector<double>>& M2,
-                 std::vector<std::vector<double>> & ans)
-{
-    int m = M1.size(); 
-    int n = M1[0].size(); 
-
-    for (int i = 0; i < m; ++i)
-    for (int j = 0; j < n; ++j)
-    {
-        ans[i][j] = M1[i][j] + M2[i][j];
-    }
-}
-
-void Math::MatmMat(const std::vector<std::vector<double>>& M1,
-                 const std::vector<std::vector<double>>& M2,
-                 std::vector<std::vector<double>> & ans)
-{
-    int m = M1.size();
-    int n = M1[0].size();
-
-    for (int i = 0; i < m; ++i)
-    for (int j = 0; j < n; ++j)
-    {
-        ans[i][j] = M1[i][j] - M2[i][j];
-    }
-}
-
-void Math::VecmVec(const std::vector<double>& v1,
-                 const std::vector<double>& v2,
-                       std::vector<double>& ans)
-{
-    for (size_t i = 0; i < v1.size(); ++i)
-        ans[i] = v1[i] - v2[i];
-}
-
-void Math::VecpVec(const std::vector<double>& v1,
-                 const std::vector<double>& v2,
-                       std::vector<double>& ans)
-{
-    for (size_t i = 0; i < v1.size(); ++i)
-        ans[i] = v1[i] + v2[i];
-}
-
-void Math::Mcross3d(const std::vector<double>& u,
-                     const std::vector<double>& v,
-                     std::vector<double>& ans)
-{
-    ans[0] = u[1]*v[2] - u[2]*v[1];
-    ans[1] = u[2]*v[0] - u[0]*v[2];
-    ans[2] = u[0]*v[1] - u[1]*v[0];
-}
-
-double Math::TriProd(const std::vector<double>& a,
-                     const std::vector<double>& b,
-                     const std::vector<double>& c)
-{
-    std::vector<double> crx(3, 0);
-    Math::Mcross3d(b,c,crx);
-    return Math::Mdot3d(a, crx);
-}
-
-double Math::Mdot3d(const std::vector<double>& a,
-                   const std::vector<double>& b)
-{
-    double ans = 0;
-    for (size_t i = 0; i < a.size(); ++i)
-    {
-        ans += a[i] * b[i];
-    }
-    return ans;
-}
-
-double Math::Mag(const std::vector<double>& v)
-{
-    double ans = 0;
-    for (auto vi : v)
-        ans += vi*vi;
-    return sqrt(ans);
-}
-
-std_matrix Math::Eye(int N)
-{
-    std_matrix res(N, std::vector<double>(N, 0));
-    for (int i = 0; i < N; ++i)
-        res[i][i] = 1.0;
-    return res;
-}
-
-std_matrix Math::Mat(int m, int n)
-{
-   return std_matrix(m, std::vector<double>(n, 0));
-}
-
-
-double Math::Norm(const std_matrix& m, int p)
-{
-   if (p == 0)
-        return 1.0;
-   double res = 0;
-   for (auto v : m)
-   for (auto a : v)
-   {
-        res += std::pow(fabs(a), p);
-   }
-   return std::pow(res, 1/p);
-}
-
-double Math::Norm(const std::vector<double>& v, int p)
-{
-    if (p == 0)
-        return 1.0;
-    double res = 0;
-    for (auto a : v)
-        res += std::pow(fabs(a), p);
-    return std::pow(res, 1/p);
-}
-
-
-double Math::dist3d(const std::vector<double>& p1,
-                    const std::vector<double>& p2)
-{
-    double ans = 0;
-    for (size_t i = 0; i < p1.size(); ++i)
-    {
-        ans += (p1[i]-p2[i])*(p1[i]-p2[i]);
-    }
-    return sqrt(ans);
-}
-
-void Math::Normalize(std::vector<double>& v)
-{
-   double vm = Mag(v);
-   if (vm == 0)
-        return;
-   for (size_t i = 0; i < v.size(); ++i)
-        v[i] /= vm;
-}
-
-bool Math::leftOnStraightLine(const std::vector<double>& p1, 
-        const std::vector<double>& p2, const std::vector<double>& q) {
-    std::vector<double> a(3, 0);
- 
-    Math::VecmVec(p2, p1,a);
-
-    std::vector<double> b(3, 0);
-    
-    Math::VecmVec(q, p1, b);
- 
-    std::vector<double> ans(3, 0); 
-
-    Math::Mcross3d(a, b, ans); 
-    if (fabs(ans[2]) < 1.0e-12 || ans[2] > 0) 
-        return true; 
-    else return false; 
-}
-
-bool Math::leftOnArc(const std::vector<double>& p1, 
-        const std::vector<double>& p2, const std::vector<double>& cen, 
-        const std::vector<double>& q) {
-    double radius = dist3d(p1, cen); 
-    double dist = dist3d(q, cen); 
-
-    if (dist < radius || fabs(dist-radius) < 1.0e-8) 
-        return true; 
-    else return false; 
-}
-
-/*
-void Math::getRotMatrix(const std::vector<double>& point, 
-    const std::vector<double>& dir, std_matrix& mat, double rho) {
-    double u = dir[0], v = dir[1], w = dir[2]; 
-    double a = point[0], b = point[1], c = point[2]; 
-
-    mat[0][0] = u*u+(1-u*u)*cos(rho); 
-    mat[0][1] = u*v*(1-cos(rho))-w*sin(rho); 
-    mat[0][2] = u*w*(1-cos(rho))+v*sin(rho); 
-    mat[0][3] = (a*(v*v+w*w)-u*(b*v+c*w))*(1-cos(rho))+(b*w-c*v)*sin(rho); 
-
-    mat[1][0] = u*v*(1-cos(rho))+w*sin(rho); 
-    mat[1][1] = v*v+(1-v*v)*cos(rho); 
-    mat[1][2] = v*w*(1-cos(rho))-u*sin(rho); 
-    mat[1][3] = (b*(u*u+w*w)-v*(a*u+c*w))*(1-cos(rho))+(c*u-a*w)*sin(rho); 
-
-    mat[2][0] = u*w*(1-cos(rho)) - v*sin(rho);
-    mat[2][1] = v*w*(1-cos(rho)) + u*sin(rho);
-    mat[2][2] = w*w+(1-w*w)*cos(rho);
-    mat[2][3] = (c*(u*u+v*v)-w*(a*u+b*v))*(1-cos(rho))+(a*v-b*u)*sin(rho); 
-    
-    mat[3][0] = mat[3][1] = mat[3][2] = 0.0; 
-    mat[3][3] = 1.0; 
-}
-*/
-
-// rotation matrix to rotate point rho around axis 
-// If stand at (x, y ,z) and look towards dir direction, 
-// the rotation is performed clockwise. 
-void Math::getRotMatrix(const std::vector<double>& point, 
-    const std::vector<double>& dir, std_matrix& mat, double rho) {
-    double a = dir[0], b = dir[1], c = dir[2]; 
-    double x = point[0], y = point[1], z = point[2]; 
-
-    std_matrix T = Math::Eye(4); 
-
-    T[0][3] = -x, T[1][3] = -y, T[2][3] = -z; 
-
-    std_matrix Ti = Math::Eye(4); 
-
-    Ti[0][3] = x, Ti[1][3] = y, Ti[2][3] = z;
-
-    double d = sqrt(b*b+c*c); 
-
-    std_matrix tempAns = Math::Mat(4, 4); 
-    
-    mat = T; 
-
-    std_matrix Rz = Math::Mat(4, 4);
-
-    Rz[0][0] = cos(rho), Rz[0][1] = -sin(rho);
-    Rz[1][0] = sin(rho), Rz[1][1] = cos(rho);
-    Rz[2][2] = Rz[3][3] = 1.0;
-    
-    std_matrix Ry = Math::Mat(4, 4);
-
-    Ry[0][0] = d, Ry[0][2] = -a;
-    Ry[1][1] = 1.0;
-    Ry[2][0] = a, Ry[2][2] = d;
-    Ry[3][3] = 1.0;
-
-    std_matrix Ryi = Math::Mat(4,4);
-
-    Math::transpose(Ry, Ryi); 
-
-    std_matrix Rx = Math::Eye(4);
-    std_matrix Rxi = Math::Eye(4);  
-
-    if (fabs(d) > 1.0e-12) {
-        Rx[1][1] = c/d, Rx[1][2] = -b/d; 
-        Rx[2][1] = b/d, Rx[2][2] = c/d; 
-        Math::transpose(Rx, Rxi);
-    }
-
-    Math::MatxMat(Rx, mat, tempAns); 
-    Math::assignMatToMat(tempAns, mat); 
-    Math::MatxMat(Ry, mat, tempAns); 
-    Math::assignMatToMat(tempAns, mat); 
-    Math::MatxMat(Rz, mat, tempAns);
-    Math::assignMatToMat(tempAns, mat);
-    Math::MatxMat(Ryi, mat, tempAns);
-    Math::assignMatToMat(tempAns, mat);
-    Math::MatxMat(Rxi, mat, tempAns);
-    Math::assignMatToMat(tempAns, mat);
-    Math::MatxMat(Ti, mat, tempAns);
-    Math::assignMatToMat(tempAns, mat);
-}
-
-void Math::assignMatToMat(const std_matrix& M1, std_matrix& M2) {
-    int m = M1.size(); 
-    int n = M1[0].size(); 
-
-    for (int i = 0; i < m; i++)
-    for (int j = 0; j < n; j++) 
-         M2[i][j] = M1[i][j]; 
-}
-
-void Math::transpose(std_matrix& M) {
-    int m = M.size(); 
-    int n = M[0].size(); 
-    
-    for (int i = 0; i < m; i++) 
-    for (int j = i+1; j < n; j++) {
-         int temp = M[i][j]; 
-    
-         M[i][j] = M[j][i]; 
-         M[j][i] = temp; 
-    }
-} 
-
-void Math::transpose(const std_matrix& M1, std_matrix& M2) {
-    int m = M2.size(); 
-    int n = M2[0].size(); 
-
-    for (int i = 0; i < m; i++)
-    for (int j = 0; j < n; j++) 
-         M2[i][j] = M1[j][i]; 
 }
 
 std::ostream& operator << (std::ostream& os, const std::vector<double>& v)
 {
     std::copy(v.begin(), v.end(), std::ostream_iterator<double>(os, " "));
-    return os;
-}
-
-std::ostream& operator << (std::ostream& os, const std_matrix& m)
-{
-    os << "[" << std::endl;
-    for (auto v : m)
-    {
-        std::copy(v.begin(), v.end(), std::ostream_iterator<double>(os, " "));
-        os << std::endl;
-    }
-    os << "]" << std::endl;
     return os;
 }
