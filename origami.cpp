@@ -4,6 +4,7 @@
 #include <fstream>
 #include <typeinfo>
 #include <algorithm>
+#include <deque>
 
 static std::ostream& operator << (std::ostream& os, const std::vector<double>&);
 
@@ -140,14 +141,16 @@ void OrigamiFold::findNextFoldingAngle()
     while (!success && iter++ < maxIter)
     {
         int N = rho.size();
-        std::vector<double> rho_rand(N, 0); 
-        std::vector<double> dir(N, 0);
+        std::vector<double> rho_rand(N); 
+        std::vector<double> dir(N);
 
+        dir.reserve(N);
         std::generate_n(rho_rand.begin(), N, rand);
         std::transform(rho_rand.begin(), rho_rand.end(), 
                        rho_rand.begin(), Trans_rand());
         std::transform(rho_rand.begin(), rho_rand.end(), 
-                       rho_T.begin(), dir.begin(), Trans_dir(weight));
+                       rho_T.begin(), dir.begin(), 
+                       Trans_dir(weight));
         std::transform(rho_delta.begin(), rho_delta.end(), 
                        dir.begin(), rho_tau.begin(), Trans_tau(stepSize));
 
@@ -238,20 +241,21 @@ Drag* OrigamiFold::clone(const Info & info)
                   << "insufficient data is given"
                   << std::endl;
     }
+
     std::vector<double> v = info.data();
-    std::vector<std::vector<double>> points;
-    std::vector<std::pair<int, int>> creases;
-    std::vector<std::vector<int>> faces; 
-    std::vector<int> typeIdx; 
-    std::vector<double> cen; 
-    std::vector<std::vector<int>> mappings; 
-    std::vector<double> angles;
-    int optAlgoType; 
     size_t n_pt = (size_t)v[0];
     size_t n_crs = (size_t)v[1];
     size_t n_fs = (size_t)v[2]; 
     size_t n_fsp = (size_t)v[3]; 
     size_t n_ncm = (size_t)v[4];
+    std::vector<std::vector<double>> points(n_pt);
+    std::vector<std::pair<int, int>> creases(n_crs);
+    std::vector<std::vector<int>> faces(n_fs); 
+    std::vector<int> typeIdx(n_fs); 
+    std::vector<double> cen; 
+    std::vector<std::vector<int>> mappings(n_fs); 
+    std::vector<double> angles(n_crs);
+    int optAlgoType; 
 
     totalDataSize = 5 + n_pt * 3 + n_crs * 2 + n_crs * 1 + 3*n_fs + n_fsp + 
         3 + n_ncm + 1;
@@ -261,37 +265,39 @@ Drag* OrigamiFold::clone(const Info & info)
     double *it = &(v.front()) + 5;
     for (int i = 0; i < n_pt; ++i)
     {
-        points.push_back({*it, *(it+1), *(it+2)});
+        points[i] = {*it, *(it+1), *(it+2)};
         it += 3;
     }
     for (int i = 0; i < n_crs; ++i)
     {
-        creases.push_back(std::make_pair(int(*it), int(*(it+1))));
+        creases[i] = std::make_pair(int(*it), int(*(it+1)));
         it += 2;
     }
     cen.resize(3); 
     std::copy(it, it+3, cen.begin()); 
     it += 3; 
     for (int i = 0; i < n_fs; i++) {
-         typeIdx.push_back(*(it++)); 
-	 std::vector<int> temp; 
+         typeIdx[i] = *(it++); 
+
+	 std::deque<int> temp; 
+
          for (int j = 0; j < int(*it); j++) {
-	      temp.push_back(int(*(it+j+1))); 
+	      temp.push_back(int(*(it+j+1)));
          }
 	 it = it + int(*it)+1; 
-	 faces.push_back(temp);
+	 faces[i] = std::vector<int>(temp.begin(), temp.end());
     }
     for (int i = 0; i < n_fs; i++) {
-         std::vector<int> temp; 
+         std::deque<int> temp; 
 
          for (int j = 0; j < int(*it); j++)
               temp.push_back(*(it+j+1)); 
-         mappings.push_back(temp); 
+         mappings[i] = std::vector<int>(temp.begin(), temp.end()); 
          it = it + int(*it) + 1; 
     }
     for (int i = 0; i < n_crs; ++i)
     {
-        angles.push_back(*it);
+        angles[i] = *it;
         it++;
     }
     optAlgoType = (int)*it; 
@@ -322,7 +328,8 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
 
     rho.resize(N, 0);
     rho_delta.resize(N, 0);
-    rho_tau.resize(N, 0);
+    rho_tau.resize(N);
+    rho_T.reserve(N);
     vertices_.resize(points.size()); 
     for (int i = 0; i < points.size(); i++) 
 	 vertices_[i] = NULL;  
@@ -343,20 +350,18 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
          if (vertices_[i] == NULL) 
              vertices_[i] = new Vertex(points[i], i); 
     }
-
-    for (auto it : creases_) 
+    for (auto it : creases_)
          rho_T.push_back(it->getRotAngle()); 
-
-    std::vector<Crease*> tempFaceCrease; 
-    
+    faces_.reserve(fs.size());
     for (size_t i = 0; i < fs.size(); i++) {
-	 std::vector<Vertex*> tempFaceVertex; 
+	 std::vector<Vertex*> tempFaceVertex(fs[i].size()); 
+         std::vector<Crease*> tempFaceCrease(mappings[i].size()); 
          
          for (int j = 0; j < mappings[i].size(); j++)
-              tempFaceCrease.push_back(creases_[mappings[i][j]]); 
+              tempFaceCrease[j] = creases_[mappings[i][j]];
 	// tempFaceCrease.push_back(creases_[i]); 
 	 for (size_t j = 0; j < fs[i].size(); j++) 
-	      tempFaceVertex.push_back(vertices_[fs[i][j]]); 
+	      tempFaceVertex[j] = vertices_[fs[i][j]]; 
          switch (typeIdx[i]) {
             case origamiSurface::FACEONEARC: 
 	        faces_.push_back(new FaceOneArc(tempFaceVertex, 
@@ -365,7 +370,6 @@ OrigamiFold::OrigamiFold(const std::vector<std::vector<double>>& points,
             case origamiSurface::POLYGON: 
                 faces_.push_back(new Polygon(tempFaceVertex, tempFaceCrease)); 
          }
-         tempFaceCrease.clear(); 
     }
     for (auto it : vertices_) {
          if (!it->judgeNonVirtual()) continue; 

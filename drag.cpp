@@ -1,5 +1,6 @@
 #include "drag.h"
 #include <iostream>
+
 const double EPS = 1e-15;
 static bool isPointInBall(double p[], double c[], double r);
 static double Dot3d(const double*,const double*);
