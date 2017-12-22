@@ -16,15 +16,15 @@ OgmPoint::OgmPoint(SpringVertex& sv) : SpringVertex(sv)
 }
 
 // class optAlgoSingleton
-optAlgoSingleton::optAlgoSingleton() {
-    mymap.insert({"GN_DIRECT_L_RAND", 2}); 
-    mymap.insert({"LN_COBYLA", 25}); 
-    mymap.insert({"LN_NELDERMEAD", 28}); 
-    mymap.insert({"LD_TNEWTON_PRECOND", 17}); 
+OptAlgorithm::OptAlgorithm() {
+    mymap.insert({"GN_DIRECT_L_RAND", 2});
+    mymap.insert({"LN_COBYLA", 25});
+    mymap.insert({"LN_NELDERMEAD", 28});
+    mymap.insert({"LD_TNEWTON_PRECOND", 17});
 }
 
 //class faceTypeSingleton
-faceTypeSingleton::faceTypeSingleton() {
+FaceType::FaceType() {
     mymap.insert({"POLYGON", 0}); 
     mymap.insert({"FACEONEARC", 1});
     mymap.insert({"FACETWOARC", 2});
@@ -520,7 +520,7 @@ bool Face::leftOnArc(arma::vec vp1, arma::vec vp2,
     double radius = arma::norm(vp1 - vcen);
     double dist = arma::norm(vq - vcen);
 
-    if (dist < radius || fabs(dist-radius) < 1.0e-8)
+    if (dist < radius || fabs(dist-radius) < 1.0e-4)
         return true;
     return false; 
 }

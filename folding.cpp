@@ -1,6 +1,7 @@
 #include "folding.h"
 #include "spring_solver.h"
 #include "origami.h"
+#include "drag_proto.h"
 #include <fstream>
 #include <sstream>
 #include <unordered_map>
@@ -24,11 +25,12 @@ void Folder::addDragsFromFile(std::string fname) {
 
     Drag::Info info;
     std::set<std::string> foldset;
-    optAlgoSingleton& oas = optAlgoSingleton::instance(); 
-    std::unordered_map<std::string, int> optMap = oas.getMap(); 
-    faceTypeSingleton& fts = faceTypeSingleton::instance(); 
-    std::unordered_map<std::string, int> faceMap = fts.getMap(); 
-
+    OptAlgorithm& oas = OptAlgorithm::instance(); 
+    origamiSurface::MapStrInt optMap = oas.getMap(); 
+    FaceType& fts = FaceType::instance(); 
+    origamiSurface::MapStrInt faceMap = fts.getMap(); 
+    
+    DragProtoInit::instance();
     for (std::vector<Drag*>::iterator it = Drag::prototypes.begin();
                 it != Drag::prototypes.end(); it++)
          foldset.insert((*it) -> id());
@@ -49,10 +51,10 @@ void Folder::addDragsFromFile(std::string fname) {
 	     info.id() = s;
 	}
         // algorithm type for nlopt method for origami 
-        else if (optMap.find(s) != optMap.end()) 
-            info.data().push_back(optMap[s]); 
-        else if (faceMap.find(s) != faceMap.end()) 
-            info.data().push_back(faceMap[s]); 
+        else if (optMap.count(s) ) 
+            info.data().push_back(optMap.find(s)->second); 
+        else if (faceMap.count(s)) 
+            info.data().push_back(faceMap.find(s)->second); 
 	else
 	{
 	     //check if it is a double

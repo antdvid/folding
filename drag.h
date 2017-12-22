@@ -1,5 +1,6 @@
 #ifndef DRAG_H
 #define DRAG_H
+
 #include <algorithm>
 #include <cmath>
 #include "spring_solver.h"

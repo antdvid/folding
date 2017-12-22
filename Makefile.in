@@ -35,7 +35,7 @@ im_spring_solver.o: im_spring_solver.cpp
 origami.o: origami.cpp
 	$(CXX) $< -c $(incs) $(NLOPT_Include) $(ARMA_Include)
 %.o: %.cpp
-	$(CXX) $< -c $(incs) $(CGAL_Include) $(NLOPT_Include) -frounding-math
+	$(CXX) $< -c $(incs) $(CGAL_Include) $(NLOPT_Include) $(ARMA_Include) -frounding-math
 
 -include ../devel-deps.inc
 

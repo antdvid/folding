@@ -1,8 +1,12 @@
+#ifndef ORIGAMI_H
+#define ORIGAMI_H
+
 #include "spring_solver.h"
 #include "drag.h"
 #include "nlopt.hpp"
 #include <unordered_map>
 #include <armadillo>
+#include "singleton.h"
 
 namespace origamiSurface {
     typedef std::unordered_map<std::string, int> MapStrInt; 
@@ -11,7 +15,7 @@ namespace origamiSurface {
         FACEONEARC,
         FACETWOARC
     } faceType;
-} 
+}
 
 class Crease; 
 
@@ -54,27 +58,18 @@ public :
     double getRotAngle() { return rho_T; }
 };
 
-class OgmPoint; 
-
-class faceTypeSingleton {
-    origamiSurface::MapStrInt mymap; 
-    faceTypeSingleton(); 
-    void operator=(faceTypeSingleton&); 
-    faceTypeSingleton(const faceTypeSingleton&); 
-public : 
-    static faceTypeSingleton& instance() {
-        static faceTypeSingleton fts; 
-        return fts; 
-    }
+class FaceType : public Singleton<FaceType>{
+    origamiSurface::MapStrInt mymap;
+protected:
+    friend class Singleton<FaceType>;
+    FaceType();
+public:
     origamiSurface::MapStrInt& getMap() { return mymap; } 
 };
 
+class OgmPoint;
+
 class Face {
-    typedef enum {
-        POLYGON, 
-        FACEONEARC, 
-        FACETWOARC
-    } faceType; 
     // vertices constructing the face
     std::vector<Vertex*> vertices_;
     // crease lines vertices on the face will go through
@@ -138,16 +133,12 @@ public:
     std::vector<double> getInitialCoords() { return x0; }
 };
 
-class optAlgoSingleton {
-    origamiSurface::MapStrInt mymap; 
-    optAlgoSingleton(); 
-    void operator=(optAlgoSingleton&); 
-    optAlgoSingleton(const optAlgoSingleton&); 
+class OptAlgorithm : public Singleton<OptAlgorithm> {
+    origamiSurface::MapStrInt mymap;
+protected:
+    friend class Singleton<OptAlgorithm>;
+    OptAlgorithm();
 public : 
-    static optAlgoSingleton& instance() {
-        static optAlgoSingleton oas; 
-        return oas; 
-    }
     origamiSurface::MapStrInt& getMap() { return mymap; }
 };
 
@@ -211,3 +202,5 @@ private:
     size_t totalDataSize;
     int optAlgoType_; 
 };
+
+#endif
