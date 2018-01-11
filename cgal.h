@@ -37,6 +37,11 @@ class cgalSurf
     double height_; 
     std::vector<double> extConPoint_;
     bool hole_ = false; 
+    // non-virtual interface idiom (Template Method design patter)
+    // Only make different part virtual and keep 
+    // other common part directly inherited by derived class
+    virtual void addHole(std::vector<bool>&, int&);
+    virtual void getSpecialParaFromFile(std::ifstream&) = 0;
 protected :
     void height(double h) { height_ = h; } 
     double height() const { return height_; }
@@ -67,12 +72,12 @@ public :
     void setCurveZeroLength(CURVE*, double); 
     void setMonoCompBdryZeroLength(); 
     // by generated tri mesh generates surface
-    virtual void cgalGenSurf(); 
+    void cgalGenSurf(); 
     // add boundary constraint. different for differernt shape
     virtual void addCgalConst() = 0;
     // preprocess and generate tri mesh 
-    virtual void cgalTriMesh(std::ifstream&) = 0; 
-    virtual void getParaFromFile(std::ifstream&) = 0; 
+    void getParaFromFile(std::ifstream&); 
+    void cgalTriMesh(std::ifstream&); 
     virtual ~cgalSurf() {}; 
 };
 
@@ -80,12 +85,11 @@ class cgalRectangleSurf : public cgalSurf
 {
     double lower[2]; 
     double upper[2]; 
+    void getSpecialParaFromFile(std::ifstream&);
 public :
-    cgalRectangleSurf(INTERFACE* intfc, SURFACE** surf) :
+    cgalRectangleSurf(INTERFACE* intfc, SURFACE** surf) : 
     		cgalSurf(intfc, surf) {}
     void addCgalConst(); 
-    void cgalTriMesh(std::ifstream&); 
-    void getParaFromFile(std::ifstream&); 
     ~cgalRectangleSurf() {}
 };
 
@@ -95,6 +99,7 @@ class cgalCircleSurf : public cgalSurf
     double radius; 
     int num_reg_const;
     static const double eps;
+    virtual void getSpecialParaFromFile(std::ifstream&);
 protected : 
     double* getCenter() { return cen; }
     void setCenter(double c1, double c2) { cen[0] = c1; cen[1] = c2; }
@@ -104,10 +109,8 @@ protected :
     void numRegConst(int num) { num_reg_const = num; } 
 public : 
     cgalCircleSurf(INTERFACE* intfc, SURFACE** surf) : 
-		cgalSurf(intfc, surf) { num_reg_const = 150; }
+	cgalSurf(intfc, surf) { num_reg_const = 150; }
     void addCgalConst();
-    void cgalTriMesh(std::ifstream&);
-    void getParaFromFile(std::ifstream&);
     double distance(double*, double*, int); 
     ~cgalCircleSurf() {}
 };
@@ -115,13 +118,14 @@ public :
 class cgalParaSurf : public cgalCircleSurf {
     int num_lines; 
     int num_cons; 
-    double innerRad; 
+    double innerRad;
+    void addHole(std::vector<bool>&, int&); 
+    void getSpecialParaFromFile(std::ifstream&);
 public : 
-    cgalParaSurf(INTERFACE* intfc, SURFACE** surf) : 
+    cgalParaSurf(INTERFACE* intfc, SURFACE** surf) :  
 		cgalCircleSurf(intfc, surf) {}
-    void cgalGenSurf(); 
     void addCgalConst(); 
-    void getParaFromFile(std::ifstream&); 
     ~cgalParaSurf() {}; 
 };
+
 #endif
