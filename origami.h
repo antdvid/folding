@@ -148,26 +148,6 @@ class OrigamiFold : public Drag
     const double wplus;
     const double wminus;
     double weight = 0.8;
-    struct Trans_rand {
-        double operator()(int rd) {
-            return (rd / (double)RAND_MAX * 2 - 1) * M_PI;
-        }
-    };
-    struct Trans_dir {
-        double w_;
-        Trans_dir(double w) : w_(w) {}
-        double operator()(double r1, double r2) {
-            return (1 - w_) * r1 + w_ * r2;
-        }
-    };
-    struct Trans_tau {
-        double D;
-        Trans_tau(double d) : D(d) {}
-        double operator()(double r, double d) {
-            double rho = r + D * d;
-            return std::min(M_PI, std::max(rho, -M_PI));
-        }
-    };
 public:
     void preprocess(std::vector<SpringVertex*>&);
     void postprocess(std::vector<SpringVertex*>&);

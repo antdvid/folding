@@ -134,7 +134,7 @@ double OrigamiFold::targetFunction(
 
 void OrigamiFold::findNextFoldingAngle()
 {
-    const int maxIter = 2000;
+    const int maxIter = 5000;
     static int iter = 0;
     bool success = false;
 
@@ -145,14 +145,18 @@ void OrigamiFold::findNextFoldingAngle()
         std::vector<double> dir(N);
 
         dir.reserve(N);
-        std::generate_n(rho_rand.begin(), N, rand);
-        std::transform(rho_rand.begin(), rho_rand.end(), 
-                       rho_rand.begin(), Trans_rand());
-        std::transform(rho_rand.begin(), rho_rand.end(), 
-                       rho_T.begin(), dir.begin(), 
-                       Trans_dir(weight));
-        std::transform(rho_delta.begin(), rho_delta.end(), 
-                       dir.begin(), rho_tau.begin(), Trans_tau(stepSize));
+        // use lambda to specify how to generate value
+        std::generate_n(rho_rand.begin(), N, 
+            []() { return ((double)rand() / RAND_MAX * 2 - 1) * M_PI; });
+        // capture this by reference for lambda use
+        std::transform(rho_rand.begin(), rho_rand.end(), rho_T.begin(), dir.begin(), 
+            [this](double r1, double r2) 
+                { return (1 - weight) * r1 + weight * r2; });
+        std::transform(rho_delta.begin(), rho_delta.end(), dir.begin(), rho_tau.begin(), 
+            [this](double r, double d) { 
+                double rho = r + stepSize * d;
+                return std::min(M_PI, std::max(rho, -M_PI)); 
+            });
 
         double err = 0;
         
